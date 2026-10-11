@@ -206,7 +206,7 @@ export default function LedgerTables({ ledger, onClear }: LedgerTablesProps) {
                     })}
                   </td>
                   <td className="p-3 text-right text-[var(--ink)] font-semibold whitespace-nowrap">
-                    {entry.unit === 'USD' && `$${entry.amount.toFixed(2)}`}
+                    {(entry.unit === 'USD' || entry.unit === 'INR') && `₹${entry.amount.toFixed(2)}`}
                     {entry.unit === 'KM' && `${entry.amount} KM`}
                     {entry.unit === 'KWH' && `${entry.amount} kWh`}
                   </td>

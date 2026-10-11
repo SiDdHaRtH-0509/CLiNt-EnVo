@@ -801,7 +801,7 @@ As a result, your WebGL Digital Carbon Twin has loaded the **${stats.isNormal ? 
 
     return `Your weekly Food and Dining emissions total **${diningEmissions} kg CO2e**. This includes restaurant dining, fast food, and groceries.${highestDetail}
     
-*Recommendation*: Fast food supply chains have a higher emission coefficient (2.1 kg per $ spent) due to high meat content and retail packaging, whereas organic/vegan meals (0.45 kg per $) significantly decrease your twin footprint.`;
+*Recommendation*: Fast food supply chains have a higher emission coefficient (0.025 kg per ₹ spent) due to high meat content and retail packaging, whereas organic/vegan meals (0.005 kg per ₹) significantly decrease your twin footprint.`;
   }
 
   if (query.includes('buy') || query.includes('purchase') || query.includes('recent') || query.includes('transactions') || query.includes('history') || query.includes('ledger') || query.includes('list') || query.includes('what did i')) {
@@ -820,7 +820,7 @@ You can view full details in the Financial-Grade Carbon Ledger table at the bott
 $$GHG = Activity \\times Coefficient$$
     
 Coefficients depend on telemetry source units:
-• **Plaid**: kg CO2e per USD ($) spent (e.g. Fast Food = 2.1, Vegan = 0.45, Electronic Shopping = 1.9, SaaS = 0.15)
+• **Plaid**: kg CO2e per ₹ (Rupees) spent (e.g. Fast Food = 0.025, Dining = 0.020, Coffee = 0.007, Vegan = 0.005)
 • **Maps**: kg CO2e per kilometer (KM) traveled (e.g. Flight = 0.25, Combustion Rideshare = 0.22, EV Rideshare = 0.04, Subway = 0.035)
 • **HomeAssistant**: kg CO2e per kilowatt-hour (kWh) consumed (e.g. Coal grid = 0.95, Mixed grid = 0.42, Solar = 0.03)
 

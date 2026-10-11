@@ -5,34 +5,34 @@
 
 export interface CarbonFactor {
   category: string;
-  factor: number; // kg CO2e per unit (per $, per km, or per kWh)
-  unit: 'USD' | 'KM' | 'KWH';
+  factor: number; // kg CO2e per unit (per ₹ INR, per km, or per kWh)
+  unit: 'INR' | 'USD' | 'KM' | 'KWH';
   description: string;
 }
 
 export const CARBON_FACTORS: Record<string, CarbonFactor> = {
-  // Financial Categories (per USD spent)
-  'dining.fast_food': { category: 'Dining', factor: 2.1, unit: 'USD', description: 'Fast food meals (high meat content/packaging)' },
-  'dining.restaurant': { category: 'Dining', factor: 1.8, unit: 'USD', description: 'Standard restaurant dining' },
-  'dining.vegan': { category: 'Dining', factor: 0.45, unit: 'USD', description: 'Plant-based dining' },
-  'dining.coffee': { category: 'Dining', factor: 0.6, unit: 'USD', description: 'Cafes and coffee shops' },
+  // Financial Categories (per INR ₹ spent)
+  'dining.fast_food': { category: 'Dining', factor: 0.025, unit: 'INR', description: 'Fast food meals (high meat content/packaging)' },
+  'dining.restaurant': { category: 'Dining', factor: 0.020, unit: 'INR', description: 'Standard restaurant dining' },
+  'dining.vegan': { category: 'Dining', factor: 0.005, unit: 'INR', description: 'Plant-based dining' },
+  'dining.coffee': { category: 'Dining', factor: 0.007, unit: 'INR', description: 'Cafes and coffee shops' },
   
-  'groceries.supermarket': { category: 'Groceries', factor: 1.2, unit: 'USD', description: 'Standard supermarket groceries' },
-  'groceries.organic': { category: 'Groceries', factor: 0.6, unit: 'USD', description: 'Local/organic groceries' },
+  'groceries.supermarket': { category: 'Groceries', factor: 0.014, unit: 'INR', description: 'Standard supermarket groceries' },
+  'groceries.organic': { category: 'Groceries', factor: 0.007, unit: 'INR', description: 'Local/organic groceries' },
   
-  'shopping.electronics': { category: 'Shopping', factor: 1.9, unit: 'USD', description: 'Hardware, devices, and accessories' },
-  'shopping.apparel': { category: 'Shopping', factor: 1.1, unit: 'USD', description: 'Clothing and fast-fashion retail' },
-  'shopping.general': { category: 'Shopping', factor: 0.8, unit: 'USD', description: 'General retail purchases' },
+  'shopping.electronics': { category: 'Shopping', factor: 0.022, unit: 'INR', description: 'Hardware, devices, and accessories' },
+  'shopping.apparel': { category: 'Shopping', factor: 0.013, unit: 'INR', description: 'Clothing and fast-fashion retail' },
+  'shopping.general': { category: 'Shopping', factor: 0.009, unit: 'INR', description: 'General retail purchases' },
   
-  'services.digital': { category: 'Services', factor: 0.15, unit: 'USD', description: 'SaaS, streaming, cloud services (datacenter footprint)' },
-  'services.fitness': { category: 'Services', factor: 0.25, unit: 'USD', description: 'Gyms and wellness classes' },
+  'services.digital': { category: 'Services', factor: 0.0018, unit: 'INR', description: 'SaaS, streaming, cloud services (datacenter footprint)' },
+  'services.fitness': { category: 'Services', factor: 0.003, unit: 'INR', description: 'Gyms and wellness classes' },
   
   // Transit categories (per KM traveled)
   'transit.flight_long': { category: 'Transit', factor: 0.18, unit: 'KM', description: 'Long-haul commercial aviation' },
   'transit.flight_short': { category: 'Transit', factor: 0.25, unit: 'KM', description: 'Short-haul flights (higher takeoff impact)' },
-  'transit.rideshare_gas': { category: 'Transit', factor: 0.22, unit: 'KM', description: 'Standard combustion ride-hailing (Uber/Lyft)' },
+  'transit.rideshare_gas': { category: 'Transit', factor: 0.22, unit: 'KM', description: 'Standard combustion ride-hailing (Uber/Ola/Auto)' },
   'transit.rideshare_ev': { category: 'Transit', factor: 0.04, unit: 'KM', description: 'Electric vehicle rideshare' },
-  'transit.train': { category: 'Transit', factor: 0.035, unit: 'KM', description: 'Electric railway transit' },
+  'transit.train': { category: 'Transit', factor: 0.035, unit: 'KM', description: 'Electric railway / Metro transit' },
   'transit.bus': { category: 'Transit', factor: 0.08, unit: 'KM', description: 'Municipal bus transit' },
 
   // Energy/Utilities (per KWH consumed)
@@ -48,7 +48,7 @@ export interface RawEvent {
   id: string;
   source: 'plaid' | 'maps' | 'homeassistant';
   timestamp: string;
-  amount: number; // USD, KM, or KWH
+  amount: number; // INR (₹), KM, or KWH
   title: string;
   rawDetails: string;
 }
@@ -62,7 +62,7 @@ export interface LedgerEntry {
   timestamp: string;
   title: string;
   amount: number;
-  unit: 'USD' | 'KM' | 'KWH';
+  unit: 'INR' | 'USD' | 'KM' | 'KWH';
   category: string;
   subcategory: string;
   carbonFactor: number;

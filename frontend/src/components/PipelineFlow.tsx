@@ -26,7 +26,7 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark' }: PipelineFlo
   const isLightTheme = false;
 
   // Scenario Form States
-  const [foodAmount, setFoodAmount] = useState<string>('12.50');
+  const [foodAmount, setFoodAmount] = useState<string>('350');
   const [foodType, setFoodType] = useState<string>('dining.coffee');
 
   const [transitAmount, setTransitAmount] = useState<string>('15');
@@ -114,12 +114,12 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark' }: PipelineFlo
   const handleFoodSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(foodAmount);
-    if (isNaN(val) || val <= 0 || val > 5000) return;
+    if (isNaN(val) || val <= 0 || val > 50000) return;
 
-    let title = 'Starbucks Coffee';
-    if (foodType === 'dining.fast_food') title = 'McDonalds Fast Food';
+    let title = 'Cafe Coffee Day';
+    if (foodType === 'dining.fast_food') title = 'McDonalds India Fast Food';
     else if (foodType === 'dining.restaurant') title = 'Dine-in Restaurant Meal';
-    else if (foodType === 'dining.vegan') title = 'Sweetgreen Vegan Salad';
+    else if (foodType === 'dining.vegan') title = 'Organic Vegan Thali';
 
     triggerDynamicWebhook('plaid', title, val);
   };
@@ -354,16 +354,16 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark' }: PipelineFlo
               <span className={`text-xs font-semibold font-mono ${isLightTheme ? 'text-neutral-700' : 'text-neutral-300'}`}>Food & Dining (Plaid)</span>
             </div>
             <div className="flex flex-col gap-1 text-xs">
-              <label className="text-[10px] text-neutral-500 uppercase font-mono">Amount Spent (USD)</label>
+              <label className="text-[10px] text-neutral-500 uppercase font-mono">Amount Spent (₹ INR)</label>
               <input
                 type="number"
-                step="0.01"
-                min="0.1"
-                max="5000"
+                step="1"
+                min="10"
+                max="50000"
                 value={foodAmount}
                 onChange={e => {
                   const val = parseFloat(e.target.value);
-                  if (val > 5000) return;
+                  if (val > 50000) return;
                   setFoodAmount(e.target.value);
                 }}
                 className={`px-3 py-2 border rounded-lg outline-none font-mono text-xs ${
@@ -380,10 +380,10 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark' }: PipelineFlo
                   isLightTheme ? 'bg-[#f8f9fa] border-[#dadce0] text-neutral-800 focus:border-[#4285f4]' : 'bg-neutral-900 border-neutral-800 text-neutral-200 focus:border-neutral-700'
                 }`}
               >
-                <option value="dining.coffee">Starbucks / Coffee shop (0.60 kg/$)</option>
-                <option value="dining.fast_food">McDonalds / Fast food (2.10 kg/$)</option>
-                <option value="dining.restaurant">Standard Restaurant dining (1.80 kg/$)</option>
-                <option value="dining.vegan">Sweetgreen / Vegan option (0.45 kg/$)</option>
+                <option value="dining.coffee">Cafe Coffee Day / Coffee shop (0.007 kg/₹)</option>
+                <option value="dining.fast_food">McDonalds India / Fast food (0.025 kg/₹)</option>
+                <option value="dining.restaurant">Standard Restaurant dining (0.020 kg/₹)</option>
+                <option value="dining.vegan">Organic / Vegan Thali (0.005 kg/₹)</option>
               </select>
             </div>
             <button

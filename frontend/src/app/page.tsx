@@ -130,7 +130,7 @@ export default function Dashboard() {
   const [aqiCustomUrl, setAqiCustomUrl] = useState('');
   const [dataGovApiKey, setDataGovApiKey] = useState('');
   const [systemBroadcast, setSystemBroadcast] = useState('');
-  const [offsetAmt, setOffsetAmt] = useState(25);
+  const [offsetAmt, setOffsetAmt] = useState(500);
   const [offsetProject, setOffsetProject] = useState('reforestation');
   const [settingsActiveTab, setSettingsActiveTab] = useState<'status' | 'aqi' | 'ai_email'>('status');
   const [integrationsStatus, setIntegrationsStatus] = useState<any>(null);
@@ -539,7 +539,7 @@ export default function Dashboard() {
   };
 
   const applyCarbonOffset = () => {
-    let carbonAmount = offsetProject === 'reforestation' ? offsetAmt * 6 : offsetProject === 'methane' ? offsetAmt * 10 : offsetAmt * 15;
+    let carbonAmount = offsetProject === 'reforestation' ? Math.round(offsetAmt * 0.08) : offsetProject === 'methane' ? Math.round(offsetAmt * 0.12) : Math.round(offsetAmt * 0.18);
     const title = offsetProject === 'reforestation' ? 'Reforestation Seedlings' : offsetProject === 'methane' ? 'Agriculture Methane Digester' : 'Wind Turbine Grid';
 
     const offsetEvent = {
@@ -548,7 +548,7 @@ export default function Dashboard() {
       timestamp: new Date().toISOString(),
       amount: -carbonAmount,
       title: `Ecological Offset: ${title}`,
-      rawDetails: `Contributed $${offsetAmt} to ${title} offset project.`
+      rawDetails: `Contributed ₹${offsetAmt} to ${title} offset project.`
     };
 
     addRawEvent(offsetEvent);
@@ -937,22 +937,22 @@ export default function Dashboard() {
                       onChange={e => setOffsetProject(e.target.value)}
                       className="w-full px-3 py-2 bg-[#edf2ee] dark:bg-[#14231b] border border-[var(--line)] rounded-lg text-[var(--ink)] outline-none focus:border-emerald-500 font-sans text-xs"
                     >
-                      <option value="reforestation">Reforestation Seedlings ($2/kg)</option>
-                      <option value="methane">Agricultural Methane Digester ($1.5/kg)</option>
-                      <option value="wind">Texas Wind Turbine Grid ($1/kg)</option>
+                      <option value="reforestation">Reforestation Seedlings (₹120/kg)</option>
+                      <option value="methane">Agricultural Methane Digester (₹80/kg)</option>
+                      <option value="wind">Wind Turbine Grid (₹55/kg)</option>
                     </select>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between text-[9px] text-[var(--muted)] uppercase font-bold tracking-wider">
                       <span>Investment Budget</span>
-                      <span className="text-[var(--ink)] font-bold">${offsetAmt} USD</span>
+                      <span className="text-[var(--ink)] font-bold">₹{offsetAmt} INR</span>
                     </div>
                     <input
                       type="range"
-                      min="5"
-                      max="200"
-                      step="5"
+                      min="100"
+                      max="5000"
+                      step="100"
                       value={offsetAmt}
                       onChange={e => setOffsetAmt(parseInt(e.target.value, 10))}
                       className="w-full h-1.5 bg-[#edf2ee] dark:bg-[#14231b] rounded-lg appearance-none cursor-pointer accent-[#1e5945] dark:accent-[#79c696]"
@@ -963,7 +963,7 @@ export default function Dashboard() {
                     <div>
                       <div className="text-[9px] text-[var(--muted)] uppercase tracking-wider">Simulated Footprint Deducted</div>
                       <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">
-                        -{offsetProject === 'reforestation' ? offsetAmt * 6 : offsetProject === 'methane' ? offsetAmt * 10 : offsetAmt * 15} kg CO₂e
+                        -{offsetProject === 'reforestation' ? Math.round(offsetAmt * 0.08) : offsetProject === 'methane' ? Math.round(offsetAmt * 0.12) : Math.round(offsetAmt * 0.18)} kg CO₂e
                       </div>
                     </div>
                   </div>

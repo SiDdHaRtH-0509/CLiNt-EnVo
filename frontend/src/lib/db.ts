@@ -9,17 +9,17 @@ const BASE_MOCK_EVENTS: RawEvent[] = [
     id: 'seed-1',
     source: 'plaid',
     timestamp: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), // 6 days ago
-    amount: 6.80,
-    title: 'Starbucks Coffee',
-    rawDetails: 'Plaid: Starbucks Cafe, Seattle WA'
+    amount: 320.00,
+    title: 'Cafe Coffee Day / Blue Tokai',
+    rawDetails: 'Payment Gateway: Cafe Coffee Day, Connaught Place, New Delhi (₹320)'
   },
   {
     id: 'seed-2',
     source: 'maps',
     timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
-    amount: 14.5,
-    title: 'Transit Commute',
-    rawDetails: 'Google Maps Timeline: NY Subway, Brooklyn to Manhattan (14.5 KM)'
+    amount: 18.5,
+    title: 'Delhi Metro Commute',
+    rawDetails: 'Google Maps Timeline: Delhi Metro Yellow Line, Millennium City to Kashmere Gate (18.5 KM)'
   },
   {
     id: 'seed-3',
@@ -27,47 +27,47 @@ const BASE_MOCK_EVENTS: RawEvent[] = [
     timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), // 4 days ago
     amount: 22.4,
     title: 'Grid Energy Ingest',
-    rawDetails: 'HomeAssistant Webhook: Active usage (22.4 kWh, grid mix)'
+    rawDetails: 'HomeAssistant Webhook: Active household consumption (22.4 kWh, BSES Delhi regional grid mix)'
   },
   {
     id: 'seed-4',
     source: 'plaid',
     timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
-    amount: 120.00,
-    title: 'AWS Cloud Services',
-    rawDetails: 'Plaid: Amazon Web Services EC2/S3'
+    amount: 3450.00,
+    title: 'AWS Cloud Services Mumbai',
+    rawDetails: 'Payment Gateway: Amazon Web Services Cloud (ap-south-1 Mumbai, ₹3,450)'
   },
   {
     id: 'seed-5',
     source: 'plaid',
     timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-    amount: 14.20,
+    amount: 450.00,
     title: 'McDonalds Meal',
-    rawDetails: 'Plaid: McDonalds #429, Burger & Fries'
+    rawDetails: 'Payment Gateway: McDonalds India #112, Burger & Fries (₹450)'
   },
   {
     id: 'seed-6',
     source: 'maps',
     timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-    amount: 1800,
-    title: 'Business Trip Flight',
-    rawDetails: 'Google Maps Timeline: Flight NY to Miami (1800 KM)'
+    amount: 1150,
+    title: 'Business Trip Flight (DEL - BOM)',
+    rawDetails: 'Google Maps Timeline: Domestic Flight New Delhi (DEL) to Mumbai (BOM) (1150 KM)'
   },
   {
     id: 'seed-7',
     source: 'plaid',
     timestamp: new Date().toISOString(), // Today
-    amount: 18.50,
-    title: 'Sweetgreen Salad',
-    rawDetails: 'Plaid: Sweetgreen Organic/Vegan'
+    amount: 380.00,
+    title: 'Pure Veg / Organic Dining',
+    rawDetails: 'Payment Gateway: Organic Harvest Cafe, Bengaluru (₹380)'
   },
   {
     id: 'seed-8',
     source: 'homeassistant',
     timestamp: new Date().toISOString(), // Today
     amount: 12.0,
-    title: 'Solar Energy Ingest',
-    rawDetails: 'HomeAssistant Webhook: Solar array generation offset (12.0 kWh, green)'
+    title: 'Rooftop Solar Array Ingest',
+    rawDetails: 'HomeAssistant Webhook: Rooftop Solar array clean generation offset (12.0 kWh, green)'
   }
 ];
 
