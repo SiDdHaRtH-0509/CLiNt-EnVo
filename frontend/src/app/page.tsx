@@ -14,7 +14,6 @@ import {
 import { LedgerEntry } from '@/lib/carbon';
 import CarbonTwin3D from '@/components/CarbonTwin3D';
 import PipelineFlow from '@/components/PipelineFlow';
-import EmailCenter from '@/components/EmailCenter';
 import LedgerTables from '@/components/LedgerTables';
 import ClintSaver from '@/components/ClintSaver';
 import AuthGate from '@/components/AuthGate';
@@ -97,7 +96,7 @@ export default function Dashboard() {
   const [connectionTime, setConnectionTime] = useState<string>('');
   const theme = 'dark';
   const [showSettings, setShowSettings] = useState(false);
-  const [activeTab, setActiveTab] = useState<'twin' | 'aqi' | 'ledger' | 'pipeline' | 'email'>('twin');
+  const [activeTab, setActiveTab] = useState<'twin' | 'aqi' | 'ledger' | 'pipeline'>('twin');
   
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -284,10 +283,8 @@ export default function Dashboard() {
     if (activeStep === 6) {
       setActiveTab('pipeline');
     } else if (activeStep === 7) {
-      setActiveTab('email');
-    } else if (activeStep === 8) {
       setActiveTab('aqi');
-    } else if (activeStep === 9) {
+    } else if (activeStep === 8) {
       setActiveTab('ledger');
     } else if (activeStep >= 0 && activeStep <= 5) {
       setActiveTab('twin');
@@ -761,18 +758,6 @@ export default function Dashboard() {
               <span>⚡</span>
               <span>Pipeline</span>
             </button>
-
-            <button
-              onClick={() => setActiveTab('email')}
-              className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
-                activeTab === 'email'
-                  ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
-                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>✉️</span>
-              <span>Operations</span>
-            </button>
           </nav>
 
           {/* User Controls & Actions */}
@@ -1134,13 +1119,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-          </div>
-        )}
-
-        {/* TAB 4: OPERATIONS & EMAIL */}
-        {activeTab === 'email' && (
-          <div className="animate-fade-in" id="tour-email">
-            <EmailCenter stats={stats} user={user} />
           </div>
         )}
 

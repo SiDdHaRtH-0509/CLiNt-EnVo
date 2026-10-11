@@ -53,12 +53,6 @@ const TOUR_STEPS: TourStep[] = [
     placement: "top"
   },
   {
-    selector: "#tour-email",
-    title: "Lifecycle & Email Center",
-    description: "Preview weekly automated reports and onboarding emails sent to user mailboxes. You can also send manual email summaries to test credentials.",
-    placement: "top"
-  },
-  {
     selector: "#tour-aqi",
     title: "Real-Time AQI & Air Intelligence",
     description: "Track real-time Air Quality Index (AQI) and hazardous pollutants (PM2.5, PM10, NO2, O3, CO) for any city worldwide with custom API configuration, health advisories, and direct carbon telemetry ingestion.",
