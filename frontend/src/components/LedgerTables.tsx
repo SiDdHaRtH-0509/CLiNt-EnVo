@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Database, Filter, Search, Trash2, ArrowUpDown, Smartphone, MapPin, Zap } from 'lucide-react';
 import { LedgerEntry } from '@/lib/carbon';
+import { generateUserReport, getActiveUserEmail } from '@/lib/db';
 
 interface LedgerTablesProps {
   ledger: LedgerEntry[];
@@ -96,18 +97,20 @@ export default function LedgerTables({ ledger, onClear }: LedgerTablesProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
-              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(ledger, null, 2));
+              const activeEmail = getActiveUserEmail();
+              const report = generateUserReport(activeEmail);
+              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(report, null, 2));
               const downloadAnchor = document.createElement('a');
               downloadAnchor.setAttribute("href", dataStr);
-              downloadAnchor.setAttribute("download", `clint-envo-ledger-${new Date().toISOString().slice(0, 10)}.json`);
+              downloadAnchor.setAttribute("download", `clint-envo-report-${activeEmail ? activeEmail.replace(/[^a-zA-Z0-9]/g, '_') : 'user'}-${new Date().toISOString().slice(0, 10)}.json`);
               document.body.appendChild(downloadAnchor);
               downloadAnchor.click();
               downloadAnchor.remove();
             }}
             className="px-3 py-1.5 text-xs font-mono text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 border border-emerald-500/30 bg-emerald-500/10 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer font-medium"
-            title="Export Ledger as JSON"
+            title="Export Personal Carbon Report & History as JSON"
           >
-            <span>📥 Export JSON ↓</span>
+            <span>📥 Export Report ↓</span>
           </button>
 
           <button

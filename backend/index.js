@@ -107,7 +107,10 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   region: { type: String, default: 'Asia-Pacific (India)' },
   profilePic: { type: String },
-  joinedAt: { type: Date, default: Date.now }
+  joinedAt: { type: Date, default: Date.now },
+  ledger: { type: Array, default: [] },
+  budget: { type: Number, default: 400 },
+  emailLogs: { type: Array, default: [] }
 });
 const MongoUser = mongoose.models.User || mongoose.model('User', userSchema);
 
@@ -297,6 +300,9 @@ async function updateStoredUser(email, updateFields) {
   if (updateFields.password) cleanUpdates.password = cleanStringInput(updateFields.password);
   if (updateFields.region) cleanUpdates.region = cleanStringInput(updateFields.region);
   if (updateFields.profilePic) cleanUpdates.profilePic = cleanStringInput(updateFields.profilePic);
+  if (Array.isArray(updateFields.ledger)) cleanUpdates.ledger = updateFields.ledger;
+  if (typeof updateFields.budget === 'number') cleanUpdates.budget = updateFields.budget;
+  if (Array.isArray(updateFields.emailLogs)) cleanUpdates.emailLogs = updateFields.emailLogs;
 
   if (isMongoConnected) {
     try {
@@ -320,6 +326,9 @@ async function updateStoredUser(email, updateFields) {
     if (cleanUpdates.password) serverUsers[idx].password = cleanUpdates.password;
     if (cleanUpdates.region) serverUsers[idx].region = cleanUpdates.region;
     if (cleanUpdates.profilePic) serverUsers[idx].profilePic = cleanUpdates.profilePic;
+    if (cleanUpdates.ledger) serverUsers[idx].ledger = cleanUpdates.ledger;
+    if (cleanUpdates.budget !== undefined) serverUsers[idx].budget = cleanUpdates.budget;
+    if (cleanUpdates.emailLogs) serverUsers[idx].emailLogs = cleanUpdates.emailLogs;
     
     saveUsers(serverUsers);
     return serverUsers[idx];
@@ -426,7 +435,9 @@ app.post('/api/auth/register', async (req, res) => {
         name: savedUser.name, 
         email: savedUser.email, 
         region: savedUser.region, 
-        profilePic: savedUser.profilePic 
+        profilePic: savedUser.profilePic,
+        ledger: savedUser.ledger || [],
+        budget: savedUser.budget || 400
       } 
     });
   } catch (e) {
@@ -462,7 +473,9 @@ app.post('/api/auth/login', async (req, res) => {
         name: user.name,
         email: user.email,
         region: user.region,
-        profilePic: user.profilePic
+        profilePic: user.profilePic,
+        ledger: user.ledger || [],
+        budget: user.budget || 400
       }
     });
   } catch (e) {
@@ -527,6 +540,43 @@ app.post('/api/user/update', authenticateToken, async (req, res) => {
     });
   } catch (e) {
     res.status(500).json({ error: 'Failed to update operator profile: ' + e.message });
+  }
+});
+
+// Dedicated User Ledger and History Retrieval Route
+app.get('/api/user/ledger', authenticateToken, async (req, res) => {
+  const email = req.user.email;
+  try {
+    const users = await getStoredUsers();
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found' });
+    }
+    res.json({
+      success: true,
+      ledger: Array.isArray(user.ledger) ? user.ledger : [],
+      budget: typeof user.budget === 'number' ? user.budget : 400,
+      emailLogs: Array.isArray(user.emailLogs) ? user.emailLogs : []
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to retrieve user ledger history: ' + e.message });
+  }
+});
+
+// Dedicated User Ledger and History Synchronization Route
+app.post('/api/user/ledger', authenticateToken, async (req, res) => {
+  const email = req.user.email;
+  const { ledger, budget, emailLogs } = req.body;
+  try {
+    const updates = {};
+    if (Array.isArray(ledger)) updates.ledger = ledger;
+    if (typeof budget === 'number') updates.budget = budget;
+    if (Array.isArray(emailLogs)) updates.emailLogs = emailLogs;
+
+    await updateStoredUser(email, updates);
+    res.json({ success: true, message: 'User history and reports synchronized successfully' });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to synchronize user history: ' + e.message });
   }
 });
 

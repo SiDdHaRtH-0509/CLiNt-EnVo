@@ -5,6 +5,7 @@ import { Shield, Lock, Mail, User, Eye, EyeOff, Loader2, Sparkles, CheckCircle }
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
+import { initNewUserLedger, getUserStorageKey } from '@/lib/db';
 
 interface AuthGateProps {
   onAuthenticate: (name: string, email: string, isLogin: boolean) => void;
@@ -197,6 +198,13 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
 
     // Save active user profile info to localStorage for dashboard retrieval
     localStorage.setItem('clint_envo_active_user', JSON.stringify(authUser));
+
+    // Ensure dedicated user history is initialized or restored
+    if (!isLogin) {
+      initNewUserLedger(authUser.email, authUser.name);
+    } else if (authUser.ledger && Array.isArray(authUser.ledger) && authUser.ledger.length > 0) {
+      localStorage.setItem(getUserStorageKey(authUser.email), JSON.stringify(authUser.ledger));
+    }
 
     // Simulate high-throughput event brokering setup stages
     const stages = isLogin 

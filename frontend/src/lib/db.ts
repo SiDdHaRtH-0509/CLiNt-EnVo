@@ -2,6 +2,44 @@ import { LedgerEntry, RawEvent, processRawEvent } from './carbon';
 
 const STORAGE_KEY = 'clint_envo_ledger';
 const ONBOARDING_SENT_KEY = 'clint_envo_onboarding_sent';
+const BUDGET_KEY = 'clint_envo_budget';
+
+// Helper to determine active authenticated user email
+export function getActiveUserEmail(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const stored = localStorage.getItem('clint_envo_active_user');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && parsed.email) {
+        return parsed.email.toLowerCase().trim();
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return '';
+}
+
+export function getUserStorageKey(email?: string): string {
+  const currentEmail = (email || getActiveUserEmail()).toLowerCase().trim();
+  return currentEmail ? `clint_envo_ledger_${currentEmail}` : STORAGE_KEY;
+}
+
+export function getUserBudgetKey(email?: string): string {
+  const currentEmail = (email || getActiveUserEmail()).toLowerCase().trim();
+  return currentEmail ? `clint_envo_budget_${currentEmail}` : BUDGET_KEY;
+}
+
+export function getUserOnboardingKey(email?: string): string {
+  const currentEmail = (email || getActiveUserEmail()).toLowerCase().trim();
+  return currentEmail ? `clint_envo_onboarding_${currentEmail}` : ONBOARDING_SENT_KEY;
+}
+
+export function getUserAuditKey(email?: string): string {
+  const currentEmail = (email || getActiveUserEmail()).toLowerCase().trim();
+  return currentEmail ? `clint_envo_audit_${currentEmail}` : 'clint_envo_audit';
+}
 
 // Seed initial ledger transactions for first-time use
 const BASE_MOCK_EVENTS: RawEvent[] = [
@@ -71,19 +109,92 @@ const BASE_MOCK_EVENTS: RawEvent[] = [
   }
 ];
 
-export function getLedger(): LedgerEntry[] {
+// Initialize clean personalized baseline history for a newly registered user
+export function initNewUserLedger(email: string, userName?: string): LedgerEntry[] {
   if (typeof window === 'undefined') return [];
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const key = getUserStorageKey(email);
+  const cleanEmail = email.toLowerCase().trim();
+  const displayName = userName || cleanEmail.split('@')[0];
+
+  const userSeedEvents: RawEvent[] = [
+    {
+      id: `seed-${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}-1`,
+      source: 'plaid',
+      timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+      amount: 320.00,
+      title: `${displayName}: Cafe Coffee Day Connaught Place`,
+      rawDetails: `Payment Gateway: Welcome baseline transaction for ${displayName} (₹320)`
+    },
+    {
+      id: `seed-${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}-2`,
+      source: 'maps',
+      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      amount: 18.5,
+      title: `${displayName}: Delhi Metro Commute`,
+      rawDetails: `Google Maps Timeline: Baseline transit route for ${displayName} (18.5 KM)`
+    },
+    {
+      id: `seed-${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}-3`,
+      source: 'homeassistant',
+      timestamp: new Date().toISOString(),
+      amount: 22.4,
+      title: `${displayName}: Household Smart Meter Ingest`,
+      rawDetails: `HomeAssistant Webhook: Smart grid baseline ingest for ${displayName} (22.4 kWh)`
+    }
+  ];
+
+  const processed = userSeedEvents.map(processRawEvent);
+  localStorage.setItem(key, JSON.stringify(processed));
+  return processed;
+}
+
+export function getLedger(email?: string): LedgerEntry[] {
+  if (typeof window === 'undefined') return [];
+  const key = getUserStorageKey(email);
+  let stored = localStorage.getItem(key);
+
   if (!stored) {
-    // Seed and return processed base events
+    const currentEmail = (email || getActiveUserEmail()).toLowerCase().trim();
+
+    // If legacy ledger exists and user is founder/admin/first-run, migrate it
+    const legacy = localStorage.getItem(STORAGE_KEY);
+    if (legacy && (!currentEmail || currentEmail === 'siddharth@dubey.me' || currentEmail === 'clintech0515@gmail.com')) {
+      try {
+        const parsed = JSON.parse(legacy);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localStorage.setItem(key, legacy);
+          return parsed;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // If a brand new user registers, initialize their personal baseline
+    if (currentEmail) {
+      let userName = '';
+      const activeStr = localStorage.getItem('clint_envo_active_user');
+      if (activeStr) {
+        try {
+          const user = JSON.parse(activeStr);
+          if (user.email?.toLowerCase().trim() === currentEmail) {
+            userName = user.name;
+          }
+        } catch (e) {}
+      }
+      return initNewUserLedger(currentEmail, userName);
+    }
+
+    // Default seed fallback
     const processed = BASE_MOCK_EVENTS.map(processRawEvent);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(processed));
+    localStorage.setItem(key, JSON.stringify(processed));
     return processed;
   }
+
   try {
     const parsed = JSON.parse(stored) as LedgerEntry[];
     
-    // Check if the ledger is corrupted/crazy (e.g. contains extremely large/infinite numbers)
+    // Check if the ledger is corrupted/crazy
     const isCorrupt = parsed.some(entry => 
       !entry || 
       isNaN(entry.carbonFootprint) || 
@@ -94,7 +205,7 @@ export function getLedger(): LedgerEntry[] {
     
     if (isCorrupt) {
       const processed = BASE_MOCK_EVENTS.map(processRawEvent);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(processed));
+      localStorage.setItem(key, JSON.stringify(processed));
       return processed;
     }
 
@@ -109,7 +220,7 @@ export function getLedger(): LedgerEntry[] {
     }
     
     if (unique.length !== parsed.length) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(unique));
+      localStorage.setItem(key, JSON.stringify(unique));
     }
     return unique;
   } catch (e) {
@@ -118,38 +229,46 @@ export function getLedger(): LedgerEntry[] {
   }
 }
 
-export function saveLedger(ledger: LedgerEntry[]): void {
+export function saveLedger(ledger: LedgerEntry[], email?: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ledger));
+  const key = getUserStorageKey(email);
+  localStorage.setItem(key, JSON.stringify(ledger));
+  
+  // Asynchronously synchronize with backend cloud node if authenticated
+  syncLedgerToBackend(ledger, email);
 }
 
-export function addRawEvent(raw: RawEvent): LedgerEntry {
-  const current = getLedger();
+export function addRawEvent(raw: RawEvent, email?: string): LedgerEntry {
+  const current = getLedger(email);
   const exists = current.some(e => e.id === raw.id);
   const processed = processRawEvent(raw);
   
   if (exists) {
-    return processed; // prevent strict mode or double-click duplicates
+    return processed; // prevent duplicate clicks
   }
   
   const updated = [processed, ...current];
-  saveLedger(updated);
+  saveLedger(updated, email);
   return processed;
 }
 
-export function clearLedger(): void {
+export function clearLedger(email?: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(STORAGE_KEY);
+  const key = getUserStorageKey(email);
+  localStorage.setItem(key, JSON.stringify([]));
+  syncLedgerToBackend([], email);
 }
 
-export function getOnboardingStatus(): boolean {
+export function getOnboardingStatus(email?: string): boolean {
   if (typeof window === 'undefined') return false;
-  return localStorage.getItem(ONBOARDING_SENT_KEY) === 'true';
+  const key = getUserOnboardingKey(email);
+  return localStorage.getItem(key) === 'true';
 }
 
-export function setOnboardingStatus(sent: boolean): void {
+export function setOnboardingStatus(sent: boolean, email?: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(ONBOARDING_SENT_KEY, sent ? 'true' : 'false');
+  const key = getUserOnboardingKey(email);
+  localStorage.setItem(key, sent ? 'true' : 'false');
 }
 
 export interface LedgerStats {
@@ -162,22 +281,23 @@ export interface LedgerStats {
   isNormal: boolean; // green vs orange/grey shader flag
 }
 
-const BUDGET_KEY = 'clint_envo_budget';
-
-export function getCarbonBudget(): number {
+export function getCarbonBudget(email?: string): number {
   if (typeof window === 'undefined') return 400;
-  const saved = localStorage.getItem(BUDGET_KEY);
+  const key = getUserBudgetKey(email);
+  const saved = localStorage.getItem(key);
   return saved ? parseInt(saved, 10) : 400;
 }
 
-export function saveCarbonBudget(budget: number): void {
+export function saveCarbonBudget(budget: number, email?: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(BUDGET_KEY, budget.toString());
+  const key = getUserBudgetKey(email);
+  localStorage.setItem(key, budget.toString());
+  syncLedgerToBackend(getLedger(email), email, budget);
 }
 
-export function getStats(): LedgerStats {
-  const ledger = getLedger();
-  const carbonBudget = getCarbonBudget();
+export function getStats(email?: string): LedgerStats {
+  const ledger = getLedger(email);
+  const carbonBudget = getCarbonBudget(email);
   
   let totalCarbon = 0;
   const carbonBySource: Record<string, number> = { plaid: 0, maps: 0, homeassistant: 0 };
@@ -237,4 +357,63 @@ export function getStats(): LedgerStats {
     carbonBudget,
     isNormal
   };
+}
+
+export interface UserReportSummary {
+  userEmail: string;
+  userName: string;
+  generatedAt: string;
+  totalCarbon: number;
+  carbonBudget: number;
+  weeklySavingRate: number;
+  isNormal: boolean;
+  carbonByCategory: Record<string, number>;
+  carbonBySource: Record<string, number>;
+  dailyTrend: { date: string; amount: number }[];
+  transactionCount: number;
+  latestTransactions: LedgerEntry[];
+}
+
+export function generateUserReport(email?: string, name?: string): UserReportSummary {
+  const currentEmail = (email || getActiveUserEmail()).toLowerCase().trim();
+  const currentStats = getStats(currentEmail);
+  const currentLedger = getLedger(currentEmail);
+  
+  return {
+    userEmail: currentEmail,
+    userName: name || (currentEmail ? currentEmail.split('@')[0] : 'Operator'),
+    generatedAt: new Date().toISOString(),
+    totalCarbon: currentStats.totalCarbon,
+    carbonBudget: currentStats.carbonBudget,
+    weeklySavingRate: currentStats.weeklySavingRate,
+    isNormal: currentStats.isNormal,
+    carbonByCategory: currentStats.carbonByCategory,
+    carbonBySource: currentStats.carbonBySource,
+    dailyTrend: currentStats.dailyTrend,
+    transactionCount: currentLedger.length,
+    latestTransactions: currentLedger.slice(0, 10)
+  };
+}
+
+// Asynchronously sync to backend cloud node
+export async function syncLedgerToBackend(ledger: LedgerEntry[], email?: string, budget?: number): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const token = localStorage.getItem('clint_token');
+    if (!token) return;
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || (window.location.hostname.includes('localhost') ? 'http://localhost:5000' : 'https://clint-envo.onrender.com');
+    await fetch(`${backendUrl}/api/user/ledger`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        ledger,
+        budget: budget ?? getCarbonBudget(email)
+      })
+    });
+  } catch (e) {
+    // Non-blocking offline-first
+  }
 }

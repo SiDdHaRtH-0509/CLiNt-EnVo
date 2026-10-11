@@ -9,7 +9,10 @@ import {
   setOnboardingStatus,
   addRawEvent,
   getCarbonBudget,
-  saveCarbonBudget
+  saveCarbonBudget,
+  initNewUserLedger,
+  getActiveUserEmail,
+  saveLedger
 } from '@/lib/db';
 import { LedgerEntry } from '@/lib/carbon';
 import CarbonTwin3D from '@/components/CarbonTwin3D';
@@ -285,21 +288,24 @@ export default function Dashboard() {
   }, [activeStep]);
 
   const refreshData = () => {
-    const currentLedger = getLedger();
-    const currentStats = getStats();
+    const activeEmail = getActiveUserEmail();
+    const currentLedger = getLedger(activeEmail);
+    const currentStats = getStats(activeEmail);
     setLedger(currentLedger);
     setStats(currentStats);
   };
 
   const handleBudgetChange = (newBudget: number) => {
-    saveCarbonBudget(newBudget);
+    const activeEmail = getActiveUserEmail();
+    saveCarbonBudget(newBudget, activeEmail);
     refreshData();
   };
 
   const handleClear = () => {
-    if (confirm('Are you sure you want to flush the carbon ledger database? This will reset all telemetry history.')) {
-      clearLedger();
-      setOnboardingStatus(false);
+    if (confirm('Are you sure you want to flush your personal carbon ledger database? This will reset your telemetry history.')) {
+      const activeEmail = getActiveUserEmail();
+      clearLedger(activeEmail);
+      setOnboardingStatus(false, activeEmail);
       refreshData();
     }
   };
@@ -309,18 +315,51 @@ export default function Dashboard() {
   };
 
   const handleAuth = async (name: string, email: string, isLogin: boolean) => {
+    const cleanEmail = email.toLowerCase().trim();
     const savedUserStr = localStorage.getItem('clint_envo_active_user');
+    let currentUser = null;
     if (savedUserStr) {
-      setUser(JSON.parse(savedUserStr));
+      currentUser = JSON.parse(savedUserStr);
+      setUser(currentUser);
     } else {
-      setUser({
+      currentUser = {
         name,
-        email,
+        email: cleanEmail,
         region: 'Asia-Pacific (India)',
         profilePic: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`
-      });
+      };
+      setUser(currentUser);
+      localStorage.setItem('clint_envo_active_user', JSON.stringify(currentUser));
     }
     setIsAuthenticated(true);
+
+    // If new registration, initialize dedicated user baseline history
+    if (!isLogin) {
+      initNewUserLedger(cleanEmail, name);
+    }
+
+    // Attempt to pull user history from backend cloud node if available
+    try {
+      const backendUrl = getBackendUrl();
+      const token = localStorage.getItem('clint_token');
+      if (token) {
+        const res = await fetch(`${backendUrl}/api/user/ledger`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ledger && Array.isArray(data.ledger) && data.ledger.length > 0) {
+            saveLedger(data.ledger, cleanEmail);
+          }
+          if (typeof data.budget === 'number') {
+            saveCarbonBudget(data.budget, cleanEmail);
+          }
+        }
+      }
+    } catch (e) {
+      // Offline fallback
+    }
+
     refreshData();
 
     if (isLogin) {
@@ -560,6 +599,16 @@ export default function Dashboard() {
     setUser({ name: '', email: '', region: '', profilePic: '' });
     localStorage.removeItem('clint_envo_active_user');
     localStorage.removeItem('clint_token');
+    setLedger([]);
+    setStats({
+      totalCarbon: 0,
+      carbonBySource: {},
+      carbonByCategory: {},
+      dailyTrend: [],
+      weeklySavingRate: 0,
+      carbonBudget: 400,
+      isNormal: true
+    });
   };
 
   const saveSettings = async () => {
