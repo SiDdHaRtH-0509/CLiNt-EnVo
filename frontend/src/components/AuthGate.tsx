@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Shield, Lock, Mail, User, Eye, EyeOff, Loader2, Sparkles, CheckCircle } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
@@ -225,14 +224,6 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
         setLoading(false);
 
         onAuthenticate(authUser.name, authUser.email, isLogin);
-        
-        // Celebrate sync!
-        confetti({
-          particleCount: 150,
-          spread: 80,
-          origin: { y: 0.6 },
-          colors: ['#00ff66', '#00f0ff', '#ffffff']
-        });
       }
     }, 1000);
   };
@@ -247,12 +238,6 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
     localStorage.setItem('clint_envo_active_user', JSON.stringify(demoUser));
     localStorage.setItem('clint_token', 'demo-token-' + Date.now());
     onAuthenticate(demoUser.name, demoUser.email, true);
-    confetti({
-      particleCount: 80,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#00ff66', '#00f0ff', '#ffffff']
-    });
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -363,12 +348,6 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
 
       if (data.success || data.warning) {
         setSuccess(`Passphrase recovery email dispatched to ${email}. Check your inbox!`);
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.8 },
-          colors: ['#00ff66', '#ffffff']
-        });
       } else {
         setError("Failed to dispatch email. Server returned: " + (data.warning || "Unknown failure."));
       }

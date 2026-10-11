@@ -37,7 +37,6 @@ import {
   Filter
 } from 'lucide-react';
 import { addRawEvent } from '@/lib/db';
-import confetti from 'canvas-confetti';
 
 interface AqiData {
   city: string;
@@ -458,7 +457,6 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry }: { theme?:
     });
     setIngestSuccess(true);
     if (onNewTelemetry) onNewTelemetry();
-    confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 }, colors: ['#48a975', '#6bc3ed'] });
     setTimeout(() => setIngestSuccess(false), 3000);
   };
 

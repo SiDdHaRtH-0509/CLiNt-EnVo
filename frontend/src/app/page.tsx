@@ -50,7 +50,6 @@ import {
   ExternalLink,
   Radio
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 export default function Dashboard() {
   const escapeHtml = (unsafe: string): string => {
@@ -191,12 +190,6 @@ export default function Dashboard() {
       } else {
         clearInterval(interval);
         setAuditStatus('passed');
-        confetti({
-          particleCount: 40,
-          spread: 50,
-          origin: { y: 0.8 },
-          colors: ['#4285f4', '#00ff66', '#ffffff']
-        });
       }
     }, 600);
   };
@@ -308,33 +301,11 @@ export default function Dashboard() {
       clearLedger();
       setOnboardingStatus(false);
       refreshData();
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.8 },
-        colors: ['#ff5500', '#555555']
-      });
     }
   };
 
   const handleNewEntry = () => {
     refreshData();
-    const latest = getStats();
-    if (latest.isNormal) {
-      confetti({
-        particleCount: 60,
-        spread: 70,
-        origin: { y: 0.8 },
-        colors: ['#137333', '#1a73e8', '#ffffff']
-      });
-    } else {
-      confetti({
-        particleCount: 20,
-        spread: 30,
-        origin: { y: 0.8 },
-        colors: ['#d93025', '#888888']
-      });
-    }
   };
 
   const handleAuth = async (name: string, email: string, isLogin: boolean) => {
@@ -510,7 +481,6 @@ export default function Dashboard() {
       setUser(updatedUser);
       localStorage.setItem('clint_envo_active_user', JSON.stringify(updatedUser));
       setProfileMessage({ type: 'success', text: 'Profile database records synchronized successfully!' });
-      confetti({ particleCount: 40, spread: 40, origin: { y: 0.6 } });
       setTimeout(() => setShowProfile(false), 1500);
     } else {
       setProfileMessage({ type: 'error', text: 'Failed to synchronize profile changes.' });
@@ -583,7 +553,6 @@ export default function Dashboard() {
 
     addRawEvent(offsetEvent);
     handleNewEntry();
-    confetti({ particleCount: 80, spread: 60, origin: { y: 0.75 } });
   };
 
   const handleLogout = () => {
@@ -637,7 +606,6 @@ export default function Dashboard() {
       }
 
       setSettingsSaveMsg('All API connectors and telemetry keys synchronized successfully!');
-      confetti({ particleCount: 35, spread: 50, origin: { y: 0.6 } });
       fetchIntegrationsStatus(true);
       setTimeout(() => {
         setSettingsSaveMsg(null);
