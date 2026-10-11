@@ -421,9 +421,12 @@ app.post('/api/auth/register', async (req, res) => {
       name,
       email,
       password,
-      region: region || 'Global',
+      region: region || 'Asia-Pacific (India)',
       profilePic: profilePic || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`,
-      joinedAt: new Date().toISOString()
+      joinedAt: new Date().toISOString(),
+      ledger: [],
+      budget: 400,
+      emailLogs: []
     };
 
     const savedUser = await registerNewUser(newUser);

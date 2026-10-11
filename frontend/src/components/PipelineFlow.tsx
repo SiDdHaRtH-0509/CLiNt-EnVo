@@ -8,6 +8,7 @@ import { addRawEvent } from '@/lib/db';
 interface PipelineFlowProps {
   onNewEntry: () => void;
   theme?: 'light' | 'dark';
+  userEmail?: string;
 }
 
 interface PipelinePacket {
@@ -18,7 +19,7 @@ interface PipelinePacket {
   stage: 'webhook' | 'kafka' | 'worker' | 'cache' | 'timescaledb' | 'done';
 }
 
-export default function PipelineFlow({ onNewEntry, theme = 'dark' }: PipelineFlowProps) {
+export default function PipelineFlow({ onNewEntry, theme = 'dark', userEmail }: PipelineFlowProps) {
   const [activePackets, setActivePackets] = useState<PipelinePacket[]>([]);
   const [systemLoad, setSystemLoad] = useState<number>(12); // events per minute
   const [redisHits, setRedisHits] = useState<number>(187);
@@ -57,7 +58,7 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark' }: PipelineFlo
             title: p.title,
             rawDetails: `Ingested through Dynamic Scenario Form: Source:${p.source}, Title:${p.title}, Amount:${p.amount}`
           };
-          addRawEvent(rawEvent);
+          addRawEvent(rawEvent, userEmail);
           onNewEntry();
         }
       });

@@ -10,7 +10,6 @@ import {
   addRawEvent,
   getCarbonBudget,
   saveCarbonBudget,
-  initNewUserLedger,
   getActiveUserEmail,
   saveLedger
 } from '@/lib/db';
@@ -264,11 +263,12 @@ export default function Dashboard() {
       }
     } else {
       setUser({
-        name: localStorage.getItem('clint_envo_user_name') || 'Siddharth Gopal Dubey',
-        email: localStorage.getItem('clint_envo_user_email') || 'siddharth@dubey.me',
-        region: 'Asia-Pacific (India)',
-        profilePic: 'https://api.dicebear.com/7.x/bottts/svg?seed=founder'
+        name: '',
+        email: '',
+        region: '',
+        profilePic: ''
       });
+      setIsAuthenticated(false);
     }
 
     refreshData();
@@ -316,27 +316,28 @@ export default function Dashboard() {
 
   const handleAuth = async (name: string, email: string, isLogin: boolean) => {
     const cleanEmail = email.toLowerCase().trim();
-    const savedUserStr = localStorage.getItem('clint_envo_active_user');
-    let currentUser = null;
-    if (savedUserStr) {
-      currentUser = JSON.parse(savedUserStr);
-      setUser(currentUser);
-    } else {
-      currentUser = {
-        name,
-        email: cleanEmail,
-        region: 'Asia-Pacific (India)',
-        profilePic: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`
-      };
-      setUser(currentUser);
-      localStorage.setItem('clint_envo_active_user', JSON.stringify(currentUser));
+    
+    // Check if there is an existing user profile in multi-user storage
+    let existingProfile = null;
+    try {
+      const storedUsers = JSON.parse(localStorage.getItem('clint_envo_users') || '[]');
+      existingProfile = storedUsers.find((u: any) => u.email && u.email.toLowerCase().trim() === cleanEmail);
+    } catch (e) {
+      // ignore
     }
-    setIsAuthenticated(true);
 
-    // If new registration, initialize dedicated user baseline history
-    if (!isLogin) {
-      initNewUserLedger(cleanEmail, name);
-    }
+    const currentUser = {
+      name: existingProfile?.name || name || 'Carbon Auditor',
+      email: cleanEmail,
+      region: existingProfile?.region || 'Asia-Pacific (India)',
+      profilePic: existingProfile?.profilePic || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name || cleanEmail)}`
+    };
+
+    setUser(currentUser);
+    localStorage.setItem('clint_envo_active_user', JSON.stringify(currentUser));
+    localStorage.setItem('clint_envo_user_name', currentUser.name);
+    localStorage.setItem('clint_envo_user_email', cleanEmail);
+    setIsAuthenticated(true);
 
     // Attempt to pull user history from backend cloud node if available
     try {
@@ -590,7 +591,7 @@ export default function Dashboard() {
       rawDetails: `Contributed ₹${offsetAmt} to ${title} offset project.`
     };
 
-    addRawEvent(offsetEvent);
+    addRawEvent(offsetEvent, user.email);
     handleNewEntry();
   };
 
@@ -967,7 +968,7 @@ export default function Dashboard() {
 
             {/* Scenario Telemetry Simulator & Offsets */}
             <div className="lg:col-span-5 flex flex-col gap-6">
-              <PipelineFlow onNewEntry={handleNewEntry} theme={theme} />
+              <PipelineFlow onNewEntry={handleNewEntry} theme={theme} userEmail={user.email} />
 
               {/* Carbon Offset Simulator Widget */}
               <div className="bg-[var(--paper)] border border-[var(--line)] p-5 sm:p-6 rounded-xl shadow-[var(--shadow)] font-mono space-y-4">
@@ -1033,7 +1034,7 @@ export default function Dashboard() {
         {/* TAB: REAL-TIME ATMOSPHERIC AQI & AIR QUALITY INTEL */}
         {activeTab === 'aqi' && (
           <div className="animate-fade-in" id="tour-aqi">
-            <AqiMonitor theme={theme} onNewTelemetry={handleNewEntry} />
+            <AqiMonitor theme={theme} onNewTelemetry={handleNewEntry} userEmail={user.email} />
           </div>
         )}
 

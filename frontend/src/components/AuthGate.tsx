@@ -5,7 +5,7 @@ import { Shield, Lock, Mail, User, Eye, EyeOff, Loader2, Sparkles, CheckCircle }
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
-import { initNewUserLedger, getUserStorageKey } from '@/lib/db';
+import { getUserStorageKey } from '@/lib/db';
 
 interface AuthGateProps {
   onAuthenticate: (name: string, email: string, isLogin: boolean) => void;
@@ -179,10 +179,12 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
 
         const newUser = { 
           name, 
-          email, 
+          email: email.toLowerCase().trim(), 
           password, 
           region: 'Asia-Pacific (India)', 
-          profilePic: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}` 
+          profilePic: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`,
+          ledger: [],
+          budget: 400
         };
         users.push(newUser);
         localStorage.setItem('clint_envo_users', JSON.stringify(users));
@@ -201,8 +203,8 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
 
     // Ensure dedicated user history is initialized or restored
     if (!isLogin) {
-      initNewUserLedger(authUser.email, authUser.name);
-    } else if (authUser.ledger && Array.isArray(authUser.ledger) && authUser.ledger.length > 0) {
+      localStorage.setItem(getUserStorageKey(authUser.email), JSON.stringify([]));
+    } else if (authUser.ledger && Array.isArray(authUser.ledger)) {
       localStorage.setItem(getUserStorageKey(authUser.email), JSON.stringify(authUser.ledger));
     }
 

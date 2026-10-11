@@ -116,7 +116,7 @@ const INDIAN_CITIES = [
   { name: 'New York', state: 'United States', lat: 40.7128, lon: -74.0060 }
 ];
 
-export default function AqiMonitor({ theme = 'dark', onNewTelemetry }: { theme?: 'light' | 'dark'; onNewTelemetry?: () => void }) {
+export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }: { theme?: 'light' | 'dark'; onNewTelemetry?: () => void; userEmail?: string }) {
   const isLight = false;
 
   // Active Sub-Track inside Air Intel
@@ -454,7 +454,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry }: { theme?:
       amount: impact,
       title: `Atmospheric Sensor: ${aqiData.city} (AQI ${aqiData.usAqi})`,
       rawDetails: `AirWatch India Telemetry Feed. Place: ${aqiData.city}, ${aqiData.country}. US AQI: ${aqiData.usAqi}, PM2.5: ${aqiData.pm25} µg/m³. Estimated combustion delta: +${impact} kg CO2e.`
-    });
+    }, userEmail);
     setIngestSuccess(true);
     if (onNewTelemetry) onNewTelemetry();
     setTimeout(() => setIngestSuccess(false), 3000);
