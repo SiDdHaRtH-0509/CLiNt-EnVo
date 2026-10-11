@@ -1,0 +1,47 @@
+service: clint-terra-backend
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${opt:region, 'ap-south-1'} # Default: Mumbai. Change as needed
+  stage: ${opt:stage, 'prod'}
+  memorySize: 512
+  timeout: 20
+  httpApi:
+    cors:
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+        - x-api-key
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+  environment:
+    NODE_ENV: production
+    MONGODB_URI: ${env:MONGODB_URI, ''}
+    JWT_SECRET: ${env:JWT_SECRET, 'clint-envo-secure-jwt-secret-key-2026-production'}
+    DATA_GOV_IN_API_KEY: ${env:DATA_GOV_IN_API_KEY, '579b464db66ec23bdd000001cc1b62a999bf49426bc7525eb990343f'}
+    GEMINI_API_KEY: ${env:GEMINI_API_KEY, ''}
+    RESEND_API_KEY: ${env:RESEND_API_KEY, ''}
+    GMAIL_USER: ${env:GMAIL_USER, ''}
+    GMAIL_APP_PASSWORD: ${env:GMAIL_APP_PASSWORD, ''}
+
+package:
+  patterns:
+    - '!node_modules/**/.bin/**'
+    - '!.git/**'
+    - '!.env*'
+    - '!mail_errors.log'
+
+functions:
+  api:
+    handler: lambda.handler
+    events:
+      - httpApi: '*'

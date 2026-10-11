@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: CLiNt Terra & EnVo Environmental Backend API (AWS Lambda + Amazon API Gateway)
+
+Globals:
+  Function:
+    Timeout: 20
+    MemorySize: 512
+    Runtime: nodejs20.x
+
+Resources:
+  HttpApiGateway:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - x-api-key
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+
+  ClintTerraApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda.handler
+      Environment:
+        Variables:
+          NODE_ENV: production
+          JWT_SECRET: clint-envo-secure-jwt-secret-key-2026-production
+          DATA_GOV_IN_API_KEY: 579b464db66ec23bdd000001cc1b62a999bf49426bc7525eb990343f
+      Events:
+        ProxyApiRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApiGateway
+            Path: /
+            Method: ANY
+        ProxyApiGreedy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApiGateway
+            Path: /{proxy+}
+            Method: ANY
+
+Outputs:
+  ApiGatewayEndpoint:
+    Description: HTTP API Gateway endpoint URL
+    Value: !Sub "https://${HttpApiGateway}.execute-api.${AWS::Region}.amazonaws.com"

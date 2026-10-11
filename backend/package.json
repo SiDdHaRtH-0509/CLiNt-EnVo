@@ -1,0 +1,24 @@
+{
+  "name": "clint-envo-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "build": "echo 'No build step required'",
+    "build:lambda-zip": "powershell -Command \"Compress-Archive -Path index.js, lambda.js, package.json, package-lock.json, node_modules -DestinationPath lambda-deployment.zip -Force\""
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@vendia/serverless-express": "^4.12.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongoose": "^9.7.0",
+    "nodemailer": "^6.9.13"
+  },
+  "devDependencies": {
+    "archiver": "^8.0.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "geminiApiKey": "",
+  "gmailUser": "",
+  "gmailAppPassword": "",
+  "resendApiKey": "",
+  "aqiProvider": "open-meteo",
+  "aqiApiKey": "",
+  "aqiCustomUrl": "",
+  "dataGovInApiKey": ""
+}
