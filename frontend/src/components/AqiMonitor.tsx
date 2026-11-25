@@ -1,42 +1,46 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
-  Wind, 
   MapPin, 
   Search, 
   RefreshCw, 
-  AlertTriangle, 
-  ShieldCheck, 
-  ShieldAlert, 
-  Activity, 
-  Sliders, 
-  Key, 
-  ExternalLink, 
   Sparkles, 
-  ChevronRight, 
-  Info, 
   Check, 
   Navigation,
-  Flame,
-  CloudRain,
-  Eye,
-  Thermometer,
-  Compass,
-  Database,
-  BarChart3,
-  Calendar,
-  Layers,
-  Map as MapIcon,
   Star,
-  FileSpreadsheet,
-  Clock,
-  ArrowRight,
-  TrendingUp,
   Download,
-  Filter
+  Database
 } from 'lucide-react';
 import { addRawEvent } from '@/lib/db';
+
+interface GeoSearchResult {
+  id: number;
+  name: string;
+  admin1?: string;
+  country?: string;
+  latitude: number;
+  longitude: number;
+}
+
+interface CompareCityResult {
+  city: string;
+  state: string;
+  aqi: number;
+  pm25: number;
+  pm10: number;
+}
+
+interface ExposurePlanTip {
+  title: string;
+  copy: string;
+}
+
+interface ExposurePlan {
+  concern: string;
+  aqi: number;
+  tips: ExposurePlanTip[];
+}
 
 interface AqiData {
   city: string;
@@ -117,7 +121,7 @@ const INDIAN_CITIES = [
 ];
 
 export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }: { theme?: 'light' | 'dark'; onNewTelemetry?: () => void; userEmail?: string }) {
-  const isLight = false;
+  void theme;
 
   // Active Sub-Track inside Air Intel
   const [activeTrack, setActiveTrack] = useState<'overview' | 'map' | 'india' | 'compare' | 'trends' | 'exposure' | 'saved'>('overview');
@@ -130,19 +134,18 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
 
   // Search
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<GeoSearchResult[]>([]);
+  const [, setIsSearching] = useState(false);
 
   // Saved Favorites
-  const [favorites, setFavorites] = useState<string[]>([]);
-  useEffect(() => {
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return ['Delhi', 'Mumbai', 'Bengaluru'];
     try {
-      const saved = JSON.parse(localStorage.getItem('clint-air-favorites') || '["Delhi", "Mumbai", "Bengaluru"]');
-      setFavorites(saved);
-    } catch (e) {
-      setFavorites(['Delhi', 'Mumbai']);
+      return JSON.parse(localStorage.getItem('clint-air-favorites') || '["Delhi", "Mumbai", "Bengaluru"]') as string[];
+    } catch {
+      return ['Delhi', 'Mumbai'];
     }
-  }, []);
+  });
 
   const toggleFavorite = (cityName: string) => {
     setFavorites(prev => {
@@ -162,7 +165,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
   };
 
   // 1. Fetch Main Air Quality (Backend Proxy with resilient Open-Meteo fallback)
-  const fetchAirData = async (lat: number, lon: number, cityName: string, countryName: string = 'India') => {
+  const fetchAirData = useCallback(async (lat: number, lon: number, cityName: string, countryName: string = 'India') => {
     setLoading(true);
     setError(null);
     try {
@@ -170,7 +173,15 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
       const aqiApiKey = typeof window !== 'undefined' ? localStorage.getItem('aqi_api_key') || '' : '';
       const aqiProvider = typeof window !== 'undefined' ? localStorage.getItem('aqi_provider') || 'open-meteo' : 'open-meteo';
 
-      let serverData: any = null;
+      interface ServerAqiPayload {
+        data?: {
+          current?: Record<string, number | string | undefined>;
+          hourly?: AqiData['hourly'];
+        };
+        provider?: string;
+      }
+
+      let serverData: ServerAqiPayload | null = null;
       try {
         const queryParams = new URLSearchParams({
           lat: lat.toString(),
@@ -181,19 +192,19 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
         });
         const serverRes = await fetch(`${backendUrl}/api/aqi?${queryParams.toString()}`);
         if (serverRes.ok) {
-          serverData = await serverRes.json();
+          serverData = (await serverRes.json()) as ServerAqiPayload;
         }
       } catch (err) {
         console.warn('Backend proxy unavailable, running direct upstream fallback:', err);
       }
 
-      let current: any = {};
-      let hourly: any = {};
+      let current: Record<string, number | string | undefined> = {};
+      let hourly: AqiData['hourly'] = undefined;
       let providerName = 'Open-Meteo Atmospheric Grid (CAMS Copernicus Model)';
 
       if (serverData && serverData.data) {
         current = serverData.data.current || {};
-        hourly = serverData.data.hourly || {};
+        hourly = serverData.data.hourly;
         providerName = serverData.provider || providerName;
       } else {
         const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,european_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&hourly=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide&timezone=auto`;
@@ -201,7 +212,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
         if (!aqiRes.ok) throw new Error('Failed to retrieve atmospheric telemetry');
         const aqiJson = await aqiRes.json();
         current = aqiJson.current || {};
-        hourly = aqiJson.hourly || {};
+        hourly = aqiJson.hourly;
       }
 
       const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=auto`;
@@ -213,30 +224,34 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
         country: countryName,
         latitude: lat,
         longitude: lon,
-        usAqi: Math.round(current.us_aqi ?? 55),
-        europeanAqi: Math.round(current.european_aqi ?? 28),
-        pm25: Number((current.pm2_5 ?? 18).toFixed(1)),
-        pm10: Number((current.pm10 ?? 32).toFixed(1)),
-        no2: Number((current.nitrogen_dioxide ?? 15).toFixed(1)),
-        so2: Number((current.sulphur_dioxide ?? 4).toFixed(1)),
-        o3: Number((current.ozone ?? 38).toFixed(1)),
-        co: Number((current.carbon_monoxide ?? 280).toFixed(0)),
-        temperature: weatherJson?.current?.temperature_2m ?? current.temperature,
-        humidity: weatherJson?.current?.relative_humidity_2m ?? current.humidity,
-        windSpeed: weatherJson?.current?.wind_speed_10m ?? current.wind_speed,
-        updatedAt: current.time ? new Date(current.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        usAqi: Math.round(Number(current.us_aqi ?? 55)),
+        europeanAqi: Math.round(Number(current.european_aqi ?? 28)),
+        pm25: Number(Number(current.pm2_5 ?? 18).toFixed(1)),
+        pm10: Number(Number(current.pm10 ?? 32).toFixed(1)),
+        no2: Number(Number(current.nitrogen_dioxide ?? 15).toFixed(1)),
+        so2: Number(Number(current.sulphur_dioxide ?? 4).toFixed(1)),
+        o3: Number(Number(current.ozone ?? 38).toFixed(1)),
+        co: Number(Number(current.carbon_monoxide ?? 280).toFixed(0)),
+        temperature: weatherJson?.current?.temperature_2m ?? (typeof current.temperature === 'number' ? current.temperature : undefined),
+        humidity: weatherJson?.current?.relative_humidity_2m ?? (typeof current.humidity === 'number' ? current.humidity : undefined),
+        windSpeed: weatherJson?.current?.wind_speed_10m ?? (typeof current.wind_speed === 'number' ? current.wind_speed : undefined),
+        updatedAt: current.time ? new Date(String(current.time)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         hourly: hourly,
         provider: providerName
       });
-    } catch (e: any) {
-      setError(e.message || 'Unable to connect to air quality provider.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unable to connect to air quality provider.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchAirData(selectedCity.lat, selectedCity.lon, selectedCity.name, selectedCity.state);
+    const timer = setTimeout(() => {
+      fetchAirData(selectedCity.lat, selectedCity.lon, selectedCity.name, selectedCity.state);
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Geolocation
@@ -281,7 +296,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
     }
   };
 
-  const handleSelectResult = (res: any) => {
+  const handleSelectResult = (res: GeoSearchResult) => {
     const loc = { name: res.name, state: res.admin1 || res.country || '', lat: res.latitude, lon: res.longitude };
     setSelectedCity(loc);
     setSearchResults([]);
@@ -295,7 +310,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
   const [stationCityFilter, setStationCityFilter] = useState('');
   const [stationStateFilter, setStationStateFilter] = useState('');
 
-  const loadIndiaStations = async () => {
+  const loadIndiaStations = useCallback(async () => {
     setStationLoading(true);
     try {
       const params = new URLSearchParams();
@@ -311,13 +326,16 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
     } finally {
       setStationLoading(false);
     }
-  };
+  }, [stationCityFilter, stationStateFilter]);
 
   useEffect(() => {
     if (activeTrack === 'india' && stationRecords.length === 0) {
-      loadIndiaStations();
+      const t = setTimeout(() => {
+        loadIndiaStations();
+      }, 0);
+      return () => clearTimeout(t);
     }
-  }, [activeTrack]);
+  }, [activeTrack, loadIndiaStations, stationRecords.length]);
 
   // Export Stations CSV
   const handleExportStationsCsv = () => {
@@ -346,11 +364,11 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
   };
 
   // 3. Track: City Comparison
-  const [compareList, setCompareList] = useState<string[]>(['Delhi', 'Mumbai', 'Bengaluru', 'Kolkata', 'Chennai']);
-  const [compareResults, setCompareResults] = useState<any[]>([]);
+  const [compareList] = useState<string[]>(['Delhi', 'Mumbai', 'Bengaluru', 'Kolkata', 'Chennai']);
+  const [compareResults, setCompareResults] = useState<CompareCityResult[]>([]);
   const [compareLoading, setCompareLoading] = useState(false);
 
-  const loadComparison = async () => {
+  const loadComparison = useCallback(async () => {
     setCompareLoading(true);
     try {
       const res = await fetch(`${getBackendUrl()}/api/compare?cities=${encodeURIComponent(compareList.join(','))}`);
@@ -363,20 +381,23 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
     } finally {
       setCompareLoading(false);
     }
-  };
+  }, [compareList]);
 
   useEffect(() => {
     if (activeTrack === 'compare' && compareResults.length === 0) {
-      loadComparison();
+      const t = setTimeout(() => {
+        loadComparison();
+      }, 0);
+      return () => clearTimeout(t);
     }
-  }, [activeTrack, compareList]);
+  }, [activeTrack, compareList, compareResults.length, loadComparison]);
 
   // 4. Track: Map Data
   const [mapPoints, setMapPoints] = useState<MapPoint[]>([]);
   const [mapFilter, setMapFilter] = useState<string>('all');
   const [selectedMapCity, setSelectedMapCity] = useState<MapPoint | null>(null);
 
-  const loadMapData = async () => {
+  const loadMapData = useCallback(async () => {
     try {
       const res = await fetch(`${getBackendUrl()}/api/map-data`);
       if (res.ok) {
@@ -389,13 +410,16 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
     } catch {
       //
     }
-  };
+  }, [selectedMapCity]);
 
   useEffect(() => {
     if (activeTrack === 'map' && mapPoints.length === 0) {
-      loadMapData();
+      const t = setTimeout(() => {
+        loadMapData();
+      }, 0);
+      return () => clearTimeout(t);
     }
-  }, [activeTrack]);
+  }, [activeTrack, loadMapData, mapPoints.length]);
 
   // 5. Track: Trend Explorer Metric
   const [trendMetric, setTrendMetric] = useState<'us_aqi' | 'pm2_5' | 'pm10' | 'ozone'>('us_aqi');
@@ -405,12 +429,12 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
   const [planDuration, setPlanDuration] = useState(60);
   const [planSensitivity, setPlanSensitivity] = useState('general');
   const [planTime, setPlanTime] = useState('morning');
-  const [generatedPlan, setGeneratedPlan] = useState<any | null>(null);
+  const [generatedPlan, setGeneratedPlan] = useState<ExposurePlan | null>(null);
 
   const handleGeneratePlan = (e: React.FormEvent) => {
     e.preventDefault();
     const currentAqi = aqiData?.usAqi ?? 75;
-    let concern = currentAqi <= 50 ? 'Lower Concern' : currentAqi <= 100 ? 'Some Caution' : currentAqi <= 150 ? 'Reduce Exposure' : 'High Caution';
+    const concern = currentAqi <= 50 ? 'Lower Concern' : currentAqi <= 100 ? 'Some Caution' : currentAqi <= 150 ? 'Reduce Exposure' : 'High Caution';
     
     const tips = [];
     if (currentAqi <= 50) {
@@ -478,8 +502,8 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
       <div className="bg-[var(--paper)] border border-[var(--line)] p-2 sm:p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-[var(--shadow)]">
         
         {/* Track Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          {[
+        <div role="tablist" aria-label="Air quality views" className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          {([
             { id: 'overview', icon: '◉', label: 'Air Overview', track: 'TRACK 01' },
             { id: 'map', icon: '⌖', label: 'Pollution Map', track: 'TRACK 02' },
             { id: 'india', icon: '▤', label: 'India Stations (CPCB)', track: 'OFFICIAL' },
@@ -487,21 +511,30 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
             { id: 'trends', icon: '⌁', label: 'Trend Explorer', track: 'HOURLY' },
             { id: 'exposure', icon: '✳', label: 'Exposure Planner', track: 'PLAN' },
             { id: 'saved', icon: '☆', label: `Saved (${favorites.length})`, track: 'WATCHLIST' }
-          ].map(tab => (
+          ] as const).map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTrack(tab.id as any)}
+              type="button"
+              role="tab"
+              aria-selected={activeTrack === tab.id}
+              onClick={() => setActiveTrack(tab.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-mono flex items-center gap-2 cursor-pointer transition-all whitespace-nowrap ${
                 activeTrack === tab.id
                   ? 'bg-[#edf2ee] dark:bg-[#14231b] text-emerald-800 dark:text-emerald-400 font-bold border border-[var(--line)]'
                   : 'text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[#edf2ee]/50 dark:hover:bg-[#14231b]/50 border border-transparent'
               }`}
             >
-              <span className="text-emerald-700 dark:text-emerald-400">{tab.icon}</span>
+              <span aria-hidden="true" className="text-emerald-700 dark:text-emerald-400">{tab.icon}</span>
               <span>{tab.label}</span>
             </button>
           ))}
         </div>
+
+        {error && (
+          <div role="alert" aria-live="polite" className="px-4 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs font-mono">
+            {error}
+          </div>
+        )}
 
         {/* Global Indicator */}
         <div className="flex items-center gap-2.5 text-xs font-mono ml-auto">
@@ -510,11 +543,13 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
             <span className="text-[10px] uppercase font-bold tracking-wider">CPCB & CAMS MODEL LIVE</span>
           </span>
           <button
+            type="button"
             onClick={() => fetchAirData(selectedCity.lat, selectedCity.lon, selectedCity.name, selectedCity.state)}
+            aria-label="Refresh active air quality model"
             className="p-1.5 rounded-lg bg-[var(--paper)] hover:bg-[#edf2ee] dark:hover:bg-[#14231b] border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
             title="Refresh active model"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-600 dark:text-emerald-400' : ''}`} />
+            <RefreshCw aria-hidden="true" className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-600 dark:text-emerald-400' : ''}`} />
           </button>
         </div>
 
@@ -559,6 +594,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
                           fetchAirData(match.lat, match.lon, match.name, match.state);
                         }
                       }}
+                      aria-label="Select monitoring city"
                       className="w-full bg-transparent text-[var(--ink)] font-bold text-xs outline-none cursor-pointer"
                     >
                       {INDIAN_CITIES.map(c => (
@@ -572,36 +608,43 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
 
                 {/* GPS Button */}
                 <button
+                  type="button"
                   onClick={handleDetectLocation}
+                  aria-label="Detect current location using GPS"
                   className="px-3.5 py-2.5 rounded-lg bg-[var(--paper)] hover:bg-[#edf2ee] dark:hover:bg-[#14231b] border border-[var(--line)] text-[var(--ink)] text-xs flex items-center gap-1.5 cursor-pointer transition-all"
                 >
-                  <Navigation className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <Navigation aria-hidden="true" className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>Use GPS</span>
                 </button>
 
                 {/* Star Favorite Button */}
                 <button
+                  type="button"
                   onClick={() => toggleFavorite(selectedCity.name)}
+                  aria-label={favorites.includes(selectedCity.name) ? `Remove ${selectedCity.name} from saved cities` : `Save ${selectedCity.name} to favorites`}
+                  aria-pressed={favorites.includes(selectedCity.name)}
                   className={`px-3.5 py-2.5 rounded-lg border text-xs flex items-center gap-1.5 cursor-pointer transition-all ${
                     favorites.includes(selectedCity.name)
                       ? 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-300'
                       : 'bg-[var(--paper)] border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  <Star className={`w-3.5 h-3.5 ${favorites.includes(selectedCity.name) ? 'fill-amber-400 text-amber-500' : ''}`} />
+                  <Star aria-hidden="true" className={`w-3.5 h-3.5 ${favorites.includes(selectedCity.name) ? 'fill-amber-400 text-amber-500' : ''}`} />
                   <span>{favorites.includes(selectedCity.name) ? 'Saved' : 'Save'}</span>
                 </button>
 
                 {/* Search Form */}
-                <form onSubmit={handleSearch} className="relative flex-1 min-w-[160px]">
+                <form onSubmit={handleSearch} role="search" className="relative flex-1 min-w-[160px]">
+                  <label htmlFor="aqi-city-search" className="sr-only">Search any city or location for AQI</label>
                   <input
+                    id="aqi-city-search"
                     type="text"
                     placeholder="Search any place..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="w-full pl-8 pr-3 py-2.5 bg-[#edf2ee] dark:bg-[#14231b] border border-[var(--line)] rounded-lg text-xs text-[var(--ink)] outline-none focus:border-emerald-500 placeholder-[var(--muted)]"
                   />
-                  <Search className="w-3.5 h-3.5 text-[var(--muted)] absolute left-2.5 top-3 pointer-events-none" />
+                  <Search aria-hidden="true" className="w-3.5 h-3.5 text-[var(--muted)] absolute left-2.5 top-3 pointer-events-none" />
                   {searchResults.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--paper)] border border-[var(--line)] rounded-lg shadow-xl z-50 overflow-hidden font-mono text-xs">
                       {searchResults.map(res => (
@@ -794,7 +837,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
               <div className="bg-[var(--paper)] border border-[var(--line)] p-6 rounded-xl shadow-[var(--shadow)] space-y-4">
                 <div className="flex justify-between items-center border-b border-[var(--line)] pb-3">
                   <div>
-                    <span className="text-[10px] text-[var(--muted)] block uppercase font-bold">WHAT'S IN THE AIR</span>
+                    <span className="text-[10px] text-[var(--muted)] block uppercase font-bold">WHAT&apos;S IN THE AIR</span>
                     <h3 className="text-sm font-bold text-[var(--ink)] font-display">Pollutant Diagnostics</h3>
                   </div>
                   <span className="text-[10px] text-[var(--muted)]">02 / MIX</span>
@@ -1061,7 +1104,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
                 Ground truth. <em className="text-emerald-700 dark:text-emerald-400 not-italic font-normal">Not a guess.</em>
               </h2>
               <p className="text-xs text-[var(--muted)] font-sans mt-1">
-                Inspect official monitoring station observations published through India's Open Government Data Platform (<code className="text-emerald-700 dark:text-emerald-400 font-bold">data.gov.in</code>).
+                Inspect official monitoring station observations published through India&apos;s Open Government Data Platform (<code className="text-emerald-700 dark:text-emerald-400 font-bold">data.gov.in</code>).
               </p>
             </div>
 
@@ -1281,15 +1324,16 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
 
             {/* Segmented Metric Switcher */}
             <div className="flex items-center gap-1 bg-[#edf2ee] dark:bg-[#14231b] p-1.5 rounded-lg border border-[var(--line)]">
-              {[
+              {([
                 { id: 'us_aqi', label: 'US AQI' },
                 { id: 'pm2_5', label: 'PM2.5' },
                 { id: 'pm10', label: 'PM10' },
                 { id: 'ozone', label: 'Ozone (O₃)' }
-              ].map(m => (
+              ] as const).map(m => (
                 <button
                   key={m.id}
-                  onClick={() => setTrendMetric(m.id as any)}
+                  type="button"
+                  onClick={() => setTrendMetric(m.id)}
                   className={`px-3 py-1.5 rounded-md cursor-pointer transition-all ${
                     trendMetric === m.id
                       ? 'bg-[var(--paper)] text-[#1e5945] dark:text-emerald-400 font-bold shadow-sm'
@@ -1316,7 +1360,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
             <div className="h-48 flex items-end gap-1.5 overflow-x-auto pt-8 pb-3 scrollbar-none">
               {aqiData?.hourly?.time && (
                 aqiData.hourly.time.slice(0, 24).map((t, idx) => {
-                  const arr = aqiData.hourly ? (aqiData.hourly as any)[trendMetric] : [];
+                  const arr = aqiData.hourly?.[trendMetric];
                   const rawVal = arr ? arr[idx] ?? 30 : 30;
                   const maxRef = trendMetric === 'us_aqi' ? 250 : 100;
                   const heightPct = Math.min(100, Math.max(12, (rawVal / maxRef) * 100));
@@ -1398,8 +1442,9 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
               </div>
 
               <div>
-                <label className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1.5">INTENDED ACTIVITY</label>
+                <label htmlFor="exposure-activity" className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1.5">INTENDED ACTIVITY</label>
                 <select 
+                  id="exposure-activity"
                   value={planActivity} 
                   onChange={e => setPlanActivity(e.target.value)}
                   className="w-full p-2.5 bg-[#edf2ee] dark:bg-[#14231b] border border-[var(--line)] rounded-lg text-[var(--ink)] outline-none focus:border-[#1e5945]"
@@ -1407,17 +1452,18 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
                   <option value="walk">Walk / Commute</option>
                   <option value="run">Run / Cycling Workout</option>
                   <option value="outdoor-work">Outdoor Work & Labour</option>
-                  <option value="kids-play">Children's Outdoor Play</option>
+                  <option value="kids-play">Children&apos;s Outdoor Play</option>
                   <option value="errands">Short Errands & Market</option>
                 </select>
               </div>
 
               <div>
                 <div className="flex justify-between text-[10px] text-[var(--muted)] uppercase font-bold mb-1.5">
-                  <span>PLANNED DURATION</span>
+                  <label htmlFor="exposure-duration">PLANNED DURATION</label>
                   <span className="text-[var(--ink)] font-bold">{planDuration} min</span>
                 </div>
                 <input 
+                  id="exposure-duration"
                   type="range" 
                   min="10" 
                   max="240" 
@@ -1429,8 +1475,9 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
               </div>
 
               <div>
-                <label className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1.5">SENSITIVITY PROFILE</label>
+                <label htmlFor="exposure-sensitivity" className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1.5">SENSITIVITY PROFILE</label>
                 <select 
+                  id="exposure-sensitivity"
                   value={planSensitivity} 
                   onChange={e => setPlanSensitivity(e.target.value)}
                   className="w-full p-2.5 bg-[#edf2ee] dark:bg-[#14231b] border border-[var(--line)] rounded-lg text-[var(--ink)] outline-none focus:border-[#1e5945]"
@@ -1443,8 +1490,9 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
               </div>
 
               <div>
-                <label className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1.5">WINDOW TIMING</label>
+                <label htmlFor="exposure-timing" className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1.5">WINDOW TIMING</label>
                 <select 
+                  id="exposure-timing"
                   value={planTime} 
                   onChange={e => setPlanTime(e.target.value)}
                   className="w-full p-2.5 bg-[#edf2ee] dark:bg-[#14231b] border border-[var(--line)] rounded-lg text-[var(--ink)] outline-none focus:border-[#1e5945]"
@@ -1479,7 +1527,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
                   </div>
 
                   <div className="space-y-3 font-sans">
-                    {generatedPlan.tips.map((t: any, i: number) => (
+                    {generatedPlan.tips.map((t, i) => (
                       <div key={i} className="p-3 bg-[#edf2ee] dark:bg-[#14231b] rounded-lg border border-[var(--line)] flex items-start gap-3">
                         <span className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 text-xs font-bold">
                           ✓

@@ -8,7 +8,7 @@
   --card-border: #283d31;
   --paper: #18271f;
   --ink: #e8f0e9;
-  --muted: #8b9c91;
+  --muted: #9fb3a6;
   --line: #283d31;
   --green: #79c696;
   --mint: #1e3828;
@@ -497,4 +497,22 @@ body {
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* WCAG 2.1 AA Keyboard Focus Indicators */
+:focus-visible {
+  outline: 2px solid #79c696 !important;
+  outline-offset: 2px !important;
+}
+
+/* Respect Reduced Motion Preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

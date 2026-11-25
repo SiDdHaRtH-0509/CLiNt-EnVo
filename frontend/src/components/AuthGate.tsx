@@ -1,11 +1,18 @@
-'use client';
+﻿'use client';
 
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Shield, Lock, Mail, User, Eye, EyeOff, Loader2, Sparkles, CheckCircle } from 'lucide-react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Stars } from '@react-three/drei';
-import * as THREE from 'three';
 import { getUserStorageKey } from '@/lib/db';
+
+interface StoredAuthUser {
+  name: string;
+  email: string;
+  password?: string;
+  region?: string;
+  profilePic?: string;
+  ledger?: unknown[];
+  budget?: number;
+}
 
 interface AuthGateProps {
   onAuthenticate: (name: string, email: string, isLogin: boolean) => void;
@@ -103,12 +110,13 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
       if (data.token) {
         localStorage.setItem('clint_token', data.token);
       }
-    } catch (e: any) {
-      console.warn('Backend Auth failed or unreachable, trying local fallback:', e.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('Backend Auth failed or unreachable, trying local fallback:', msg);
       
       // If backend returned a credentials validation error, abort immediately and show error
-      if (e.message && (e.message.includes('passphrase') || e.message.includes('already registered') || e.message.includes('not found') || e.message.includes('Email already'))) {
-        setError(e.message);
+      if (msg && (msg.includes('passphrase') || msg.includes('already registered') || msg.includes('not found') || msg.includes('Email already'))) {
+        setError(msg);
         setLoading(false);
         return;
       }
@@ -119,7 +127,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
     // 2. Local fallback if backend is unreachable
     if (fallbackToLocal) {
       const usersStr = localStorage.getItem('clint_envo_users');
-      let users = usersStr ? JSON.parse(usersStr) : [];
+      let users: StoredAuthUser[] = usersStr ? JSON.parse(usersStr) : [];
 
       const seeds = [
         {
@@ -144,7 +152,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
         modified = true;
       } else {
         for (const seed of seeds) {
-          const exists = users.some((u: any) => u.email.toLowerCase() === seed.email.toLowerCase());
+          const exists = users.some((u) => u.email.toLowerCase() === seed.email.toLowerCase());
           if (!exists) {
             users.push(seed);
             modified = true;
@@ -157,7 +165,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
       }
 
       if (isLogin) {
-        const userMatch = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+        const userMatch = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
         if (!userMatch) {
           setError("Account not found. Please switch to the 'Synchronize Biome' tab to create your account first.");
           setLoading(false);
@@ -170,7 +178,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
         }
         authUser = userMatch;
       } else {
-        const userMatch = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+        const userMatch = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
         if (userMatch) {
           setError("This email is already registered. Please switch to the 'Access Twin Ledger' tab to log in.");
           setLoading(false);
@@ -259,10 +267,10 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
     if (typeof window === 'undefined') return;
 
     const usersStr = localStorage.getItem('clint_envo_users');
-    let users = usersStr ? JSON.parse(usersStr) : [];
+    let users: StoredAuthUser[] = usersStr ? JSON.parse(usersStr) : [];
     
     // Seed default accounts if empty, to allow resetting account password
-    const seeds = [
+    const seeds: StoredAuthUser[] = [
       {
         name: 'CLiNt-Tech Administrator',
         email: 'CLiNtech0515@gmail.com',
@@ -281,7 +289,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
       modified = true;
     } else {
       for (const seed of seeds) {
-        const exists = users.some((u: any) => u.email.toLowerCase() === seed.email.toLowerCase());
+        const exists = users.some((u) => u.email.toLowerCase() === seed.email.toLowerCase());
         if (!exists) {
           users.push(seed);
           modified = true;
@@ -293,7 +301,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
       localStorage.setItem('clint_envo_users', JSON.stringify(users));
     }
 
-    const userMatch = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+    const userMatch = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
     if (!userMatch) {
       setError("Email address not registered in the cryptographic twin database.");
       return;
@@ -316,7 +324,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
         </p>
         <div style="background-color: #ffffff; border: 1px solid #dadce0; padding: 15px; border-radius: 8px; margin: 20px 0; font-family: monospace; font-size: 12px; text-align: center;">
           <span style="color: #5f6368; display: block; margin-bottom: 5px; text-transform: uppercase; font-size: 10px;">Your Registered Passphrase:</span>
-          <strong style="color: #d93025; font-size: 18px; letter-spacing: 1px;">${escapeHtml(userMatch.password)}</strong>
+          <strong style="color: #d93025; font-size: 18px; letter-spacing: 1px;">${escapeHtml(userMatch.password || '')}</strong>
         </div>
         <p style="color: #5f6368; font-size: 13px; line-height: 1.6;">
           You can now return to the login interface, input your email, and enter the passphrase above to re-establish your secure biome session.
@@ -362,23 +370,23 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
         setError("Failed to dispatch email. Server returned: " + (data.warning || "Unknown failure."));
       }
 
-    } catch (e: any) {
-      console.error('SMTP recovery dispatch failed', e);
+    } catch (err: unknown) {
+      console.error('SMTP recovery dispatch failed', err);
       setLoading(false);
       setError("Handshake error: Failed to establish link to mail dispatch worker.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] flex items-center justify-center p-4 relative transition-colors duration-200">
+    <main id="main-content" className="min-h-screen bg-[var(--bg)] text-[var(--ink)] flex items-center justify-center p-4 relative transition-colors duration-200">
       
       {/* Main container */}
       <div className="w-full max-w-md p-7 sm:p-8 bg-[var(--paper)] border border-[var(--line)] rounded-xl shadow-[var(--shadow)] relative z-10 font-sans">
         
         {/* Logo and Brand */}
         <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-[#1e5945] flex items-center justify-center shadow-sm mb-3">
-            <span className="text-white text-2xl">🌱</span>
+          <div className="w-12 h-12 rounded-xl bg-[#1e5945] flex items-center justify-center shadow-sm mb-3" aria-hidden="true">
+            <span className="text-white text-2xl">ðŸŒ±</span>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-[var(--ink)] font-display">CLiNt EnVo</h1>
           <p className="text-[10px] text-[var(--muted)] font-mono mt-1 text-center uppercase tracking-widest">
@@ -388,15 +396,15 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
 
         {/* Loading overlay screen */}
         {loading ? (
-          <div className="py-12 flex flex-col items-center gap-5 justify-center min-h-[300px]">
-            <Loader2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 animate-spin" />
+          <div role="status" aria-live="polite" className="py-12 flex flex-col items-center gap-5 justify-center min-h-[300px]">
+            <Loader2 aria-hidden="true" className="w-8 h-8 text-emerald-600 dark:text-emerald-400 animate-spin" />
             <div className="text-center font-mono">
               <span className="text-xs text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block mb-1 font-bold">SECURE HANDSHAKE ACTIVE</span>
               <p className="text-[11px] text-[var(--muted)] animate-pulse">{loadingStage}</p>
             </div>
           </div>
         ) : isForgotPassword ? (
-          <form onSubmit={handleResetPassword} className="space-y-5">
+          <form onSubmit={handleResetPassword} className="space-y-5" aria-label="Recover passphrase form">
             <div className="border-b border-[var(--line)] pb-3">
               <h2 className="text-xs font-mono text-[var(--ink)] uppercase tracking-wider font-bold">Recover Passphrase</h2>
               <p className="text-[10px] text-[var(--muted)] font-mono mt-1 leading-normal">
@@ -406,26 +414,28 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
 
             {/* Error Message Box */}
             {error && (
-              <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/5 text-red-600 dark:text-red-400 text-xs font-mono">
+              <div role="alert" aria-live="assertive" className="p-3 rounded-lg border border-red-500/20 bg-red-500/5 text-red-600 dark:text-red-400 text-xs font-mono">
                 {error}
               </div>
             )}
 
             {/* Success Message Box */}
             {success && (
-              <div className="p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 text-xs font-mono flex items-start gap-1.5">
-                <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <div role="status" aria-live="polite" className="p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 text-xs font-mono flex items-start gap-1.5">
+                <CheckCircle aria-hidden="true" className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <span>{success}</span>
               </div>
             )}
 
             {/* Email Input */}
             <div className="space-y-1">
-              <label className="text-[10px] font-mono text-[var(--muted)] uppercase font-bold">Email Address</label>
+              <label htmlFor="auth-recover-email" className="text-[10px] font-mono text-[var(--muted)] uppercase font-bold">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
+                <Mail aria-hidden="true" className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
                 <input
+                  id="auth-recover-email"
                   type="email"
+                  autoComplete="email"
                   placeholder="name@domain.com"
                   value={email}
                   onChange={(e) => setEmail(cleanInputText(e.target.value))}
@@ -440,7 +450,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
               type="submit"
               className="w-full py-2.5 text-xs font-mono text-white font-medium bg-[#1e5945] hover:bg-[#286e57] rounded-lg transition-all shadow-sm cursor-pointer text-center flex items-center justify-center gap-1.5"
             >
-              <Shield className="w-3.5 h-3.5" />
+              <Shield aria-hidden="true" className="w-3.5 h-3.5" />
               Transmit Recovery Signal
             </button>
 
@@ -456,11 +466,13 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
             </div>
           </form>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" aria-label={isLogin ? 'Sign in form' : 'Create account form'}>
             {/* Toggle */}
-            <div className="flex border-b border-[var(--line)] pb-1">
+            <div role="tablist" aria-label="Authentication mode" className="flex border-b border-[var(--line)] pb-1">
               <button
                 type="button"
+                role="tab"
+                aria-selected={isLogin}
                 onClick={() => { setIsLogin(true); setError(''); }}
                 className={`flex-1 pb-3 text-xs font-mono border-b-2 transition-all cursor-pointer ${
                   isLogin 
@@ -472,6 +484,8 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={!isLogin}
                 onClick={() => { setIsLogin(false); setError(''); }}
                 className={`flex-1 pb-3 text-xs font-mono border-b-2 transition-all cursor-pointer ${
                   !isLogin 
@@ -485,7 +499,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
 
             {/* Error Message Box */}
             {error && (
-              <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/5 text-red-600 dark:text-red-400 text-xs font-mono">
+              <div role="alert" aria-live="assertive" className="p-3 rounded-lg border border-red-500/20 bg-red-500/5 text-red-600 dark:text-red-400 text-xs font-mono">
                 {error}
               </div>
             )}
@@ -495,11 +509,13 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
               {/* Name (Signup only) */}
               {!isLogin && (
                 <div className="space-y-1">
-                  <label className="text-[10px] font-mono text-[var(--muted)] uppercase font-bold">Full Name</label>
+                  <label htmlFor="auth-name" className="text-[10px] font-mono text-[var(--muted)] uppercase font-bold">Full Name</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
+                    <User aria-hidden="true" className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
                     <input
+                      id="auth-name"
                       type="text"
+                      autoComplete="name"
                       placeholder="e.g. Siddharth Gopal Dubey"
                       value={name}
                       onChange={(e) => setName(cleanInputText(e.target.value))}
@@ -512,11 +528,13 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
 
               {/* Email */}
               <div className="space-y-1">
-                <label className="text-[10px] font-mono text-[var(--muted)] uppercase font-bold">Email Address</label>
+                <label htmlFor="auth-email" className="text-[10px] font-mono text-[var(--muted)] uppercase font-bold">Email Address</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
+                  <Mail aria-hidden="true" className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
                   <input
+                    id="auth-email"
                     type="email"
+                    autoComplete="email"
                     placeholder="name@domain.com"
                     value={email}
                     onChange={(e) => setEmail(cleanInputText(e.target.value))}
@@ -528,12 +546,14 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
 
               {/* Password */}
               <div className="space-y-1">
-                <label className="text-[10px] font-mono text-[var(--muted)] uppercase font-bold">Passphrase</label>
+                <label htmlFor="auth-password" className="text-[10px] font-mono text-[var(--muted)] uppercase font-bold">Passphrase</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
+                  <Lock aria-hidden="true" className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
                   <input
+                    id="auth-password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
+                    autoComplete={isLogin ? 'current-password' : 'new-password'}
+                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                     value={password}
                     onChange={(e) => setPassword(cleanInputText(e.target.value))}
                     required
@@ -542,9 +562,11 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide passphrase' : 'Show passphrase'}
+                    aria-pressed={showPassword}
                     className="absolute right-3 top-2.5 text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff aria-hidden="true" className="w-4 h-4" /> : <Eye aria-hidden="true" className="w-4 h-4" />}
                   </button>
                 </div>
                 {isLogin && (
@@ -583,7 +605,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
               disabled={!isLogin && !consent}
               className="w-full py-2.5 text-xs font-mono text-white font-medium bg-[#1e5945] hover:bg-[#286e57] disabled:opacity-40 rounded-lg transition-all shadow-sm cursor-pointer text-center flex items-center justify-center gap-1.5"
             >
-              <Shield className="w-3.5 h-3.5" />
+              <Shield aria-hidden="true" className="w-3.5 h-3.5" />
               {isLogin ? 'Establish Handshake' : 'Synchronize Carbon Twin'}
             </button>
 
@@ -593,332 +615,20 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
               onClick={handleQuickDemo}
               className="w-full py-2 text-xs font-mono text-emerald-800 dark:text-emerald-300 hover:text-[var(--ink)] bg-[#dff1e7] dark:bg-[#1e3a2b] border border-emerald-600/30 dark:border-emerald-500/30 rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
             >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+              <Sparkles aria-hidden="true" className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
               <span>Instant Demo Operator Access</span>
             </button>
 
             {/* Registered Accounts Tip */}
             <div className="pt-3 border-t border-[var(--line)] text-[9px] text-[var(--muted)] text-center font-mono leading-relaxed flex items-start gap-1 justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <Sparkles aria-hidden="true" className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
               <span>
-                Tip: Create an account under 'Synchronize Biome'. Or use founder credentials: <strong className="text-[var(--ink)]">siddharth@dubey.me</strong> (passphrase: <strong className="text-[var(--ink)]">password</strong>)
+                Tip: Create an account under &apos;Synchronize Biome&apos;. Or use founder credentials: <strong className="text-[var(--ink)]">siddharth@dubey.me</strong> (passphrase: <strong className="text-[var(--ink)]">password</strong>)
               </span>
             </div>
           </form>
         )}
       </div>
-    </div>
-  );
-}
-
-// ==========================================
-// 3D ENCHANTED SPACE BACKGROUND COMPONENTS
-// ==========================================
-
-function AuthSpaceBackground() {
-  const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState<[number, number, number]>([0, 0, -2]);
-  const isLightTheme = false;
-
-  useEffect(() => {
-    setMounted(true);
-
-    const handleResize = () => {
-      if (window.innerWidth > 1024) {
-        setPosition([-1.9, 0.1, -0.2]); // Positioned leftward on desktop to clear shifted card
-      } else if (window.innerWidth > 768) {
-        setPosition([-1.3, 0.1, -0.6]); // Slightly leftward on tablet
-      } else {
-        setPosition([0, 1.0, -2.5]);   // Centered background on mobile
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  if (!mounted) return null;
-
-  return (
-    <Canvas camera={{ position: [0, 0, 5], fov: 45 }} className="w-full h-full bg-black">
-      <ambientLight intensity={isLightTheme ? 0.7 : 0.5} />
-      <directionalLight position={[5, 3, 5]} intensity={isLightTheme ? 2.0 : 1.8} />
-      
-      {/* Background Starfield or Floating Dust depending on theme */}
-      {isLightTheme ? (
-        <AuthFloatingDust count={70} />
-      ) : (
-        <Stars radius={100} depth={50} count={3500} factor={4} saturation={0.5} fade speed={1.2} />
-      )}
-      
-      <InteractionGroup>
-        <group position={position}>
-          <SpaceGalaxy isLightTheme={isLightTheme} />
-          
-          {/* Active Event-Sourcing Satellites & Gyroscopic Rings */}
-          <AuthOrbitRing radius={2.6} speed={0.2} angleX={Math.PI / 6} angleZ={0} color={isLightTheme ? "#1a73e8" : "#00f0ff"} />
-          <AuthOrbitRing radius={3.2} speed={-0.12} angleX={-Math.PI / 4} angleZ={Math.PI / 6} color={isLightTheme ? "#137333" : "#00ff66"} />
-        </group>
-      </InteractionGroup>
-    </Canvas>
-  );
-}
-
-function InteractionGroup({ children }: { children: React.ReactNode }) {
-  const groupRef = useRef<THREE.Group>(null);
-  const mouse = useRef({ x: 0, y: 0 });
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      mouse.current.x = (e.clientX / window.innerWidth) * 2 - 1;
-      mouse.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  useFrame(() => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += (mouse.current.x * 0.18 - groupRef.current.rotation.y) * 0.05;
-      groupRef.current.rotation.x += (-mouse.current.y * 0.18 - groupRef.current.rotation.x) * 0.05;
-    }
-  });
-
-  return <group ref={groupRef}>{children}</group>;
-}
-
-function AuthFloatingDust({ count = 70 }: { count?: number }) {
-  const pointsRef = useRef<THREE.Points>(null);
-
-  const particles = useMemo(() => {
-    const temp = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      const u = Math.random();
-      const v = Math.random();
-      const theta = u * 2.0 * Math.PI;
-      const phi = Math.acos(2.0 * v - 1.0);
-      const r = 2.0 + Math.random() * 4.5;
-      temp[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      temp[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      temp[i * 3 + 2] = r * Math.cos(phi);
-    }
-    return temp;
-  }, [count]);
-
-  useFrame((state) => {
-    if (pointsRef.current) {
-      pointsRef.current.rotation.y = state.clock.getElapsedTime() * 0.01;
-      pointsRef.current.rotation.x = state.clock.getElapsedTime() * 0.005;
-    }
-  });
-
-  return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[particles, 3]} />
-      </bufferGeometry>
-      <pointsMaterial
-        size={0.065}
-        color="#8a2be2" // soft violet dust motes contrasting with white
-        transparent
-        opacity={0.3}
-        depthWrite={false}
-      />
-    </points>
-  );
-}
-
-function SpaceGalaxy({ isLightTheme }: { isLightTheme: boolean }) {
-  const pointsRef = useRef<THREE.Points>(null);
-  const coreRef = useRef<THREE.Mesh>(null);
-
-  // Generate spiral galaxy particles
-  const [positions, colors] = useMemo(() => {
-    const count = 16000;
-    const radius = 5.2;
-    const branches = 3;
-    const spin = 1.5;
-    const randomnessPower = 4.2;
-
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-
-    // Contrasting colors: glowing pastel tones in dark mode, deep rich saturated watercolor tones in light mode
-    const colorInside = isLightTheme ? new THREE.Color('#4b0082') : new THREE.Color('#ffe3a0'); // deep indigo vs bright warm core
-    const colorMiddle = isLightTheme ? new THREE.Color('#c71585') : new THREE.Color('#ff00aa'); // medium violet-red vs hot pink
-    const colorOutside = isLightTheme ? new THREE.Color('#0000cd') : new THREE.Color('#00f0ff'); // deep blue vs glowing cyan
-
-    for (let i = 0; i < count; i++) {
-      const r = Math.random() * radius;
-      const spinAngle = r * spin;
-      const branchAngle = ((i % branches) / branches) * Math.PI * 2;
-
-      // Dispersion
-      const randomX = Math.pow(Math.random(), randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * 0.35 * r;
-      const randomY = Math.pow(Math.random(), randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * 0.25 * r;
-      const randomZ = Math.pow(Math.random(), randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * 0.35 * r;
-
-      pos[i * 3] = Math.cos(branchAngle + spinAngle) * r + randomX;
-      pos[i * 3 + 1] = randomY;
-      pos[i * 3 + 2] = Math.sin(branchAngle + spinAngle) * r + randomZ;
-
-      // Color interpolation
-      let mixedColor = colorInside.clone();
-      if (r < radius * 0.25) {
-        mixedColor.lerp(colorMiddle, r / (radius * 0.25));
-      } else {
-        mixedColor = colorMiddle.clone();
-        mixedColor.lerp(colorOutside, (r - radius * 0.25) / (radius * 0.75));
-      }
-
-      col[i * 3] = mixedColor.r;
-      col[i * 3 + 1] = mixedColor.g;
-      col[i * 3 + 2] = mixedColor.b;
-    }
-
-    return [pos, col];
-  }, [isLightTheme]);
-
-  const starTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 16;
-    canvas.height = 16;
-    const ctx = canvas.getContext('2d')!;
-    const grad = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
-    if (isLightTheme) {
-      // Darker star textures for white background
-      grad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
-      grad.addColorStop(0.3, 'rgba(0, 0, 0, 0.45)');
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    } else {
-      grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-      grad.addColorStop(0.3, 'rgba(255, 255, 255, 0.8)');
-      grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    }
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 16, 16);
-    return new THREE.CanvasTexture(canvas);
-  }, [isLightTheme]);
-
-  const coreGlowTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
-    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    if (isLightTheme) {
-      // Rich watercolor nebula center for light mode
-      grad.addColorStop(0, 'rgba(138, 43, 226, 0.45)');      // medium orchid core
-      grad.addColorStop(0.4, 'rgba(255, 20, 147, 0.2)');     // soft hot pink
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    } else {
-      grad.addColorStop(0, 'rgba(255, 235, 180, 1)');      // bright warm star core
-      grad.addColorStop(0.25, 'rgba(255, 0, 170, 0.55)');   // glowing magenta nebular dust
-      grad.addColorStop(0.6, 'rgba(0, 240, 255, 0.18)');    // cyan outer diffuse halo
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');             // fade out
-    }
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 64, 64);
-    return new THREE.CanvasTexture(canvas);
-  }, [isLightTheme]);
-
-  useFrame((state) => {
-    const time = state.clock.getElapsedTime();
-    if (pointsRef.current) {
-      pointsRef.current.rotation.y = time * 0.05;
-    }
-    if (coreRef.current) {
-      coreRef.current.rotation.y = -time * 0.12;
-      const s = 1.0 + Math.sin(time * 2) * 0.06;
-      coreRef.current.scale.set(s, s, s);
-    }
-  });
-
-  return (
-    <group rotation={[Math.PI / 3.2, 0, Math.PI / 6.5]}>
-      {/* Central Glowing Core Sprite (Nebula core glow) */}
-      <sprite scale={[1.8, 1.8, 1.0]}>
-        <spriteMaterial
-          map={coreGlowTexture}
-          transparent
-          depthWrite={false}
-          blending={isLightTheme ? THREE.NormalBlending : THREE.AdditiveBlending}
-          opacity={isLightTheme ? 0.65 : 0.8}
-        />
-      </sprite>
-
-      {/* Central Glowing Core Sphere (Holographic Event Matrix) */}
-      <mesh ref={coreRef}>
-        <sphereGeometry args={[0.32, 16, 16]} />
-        <meshBasicMaterial 
-          color={isLightTheme ? "#8a2be2" : "#ffe4a0"} 
-          transparent 
-          opacity={isLightTheme ? 0.3 : 0.35} 
-          depthWrite={false} 
-        />
-      </mesh>
-      
-      {/* Swirling Galaxy Particles */}
-      <points ref={pointsRef}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            args={[positions, 3]}
-          />
-          <bufferAttribute
-            attach="attributes-color"
-            args={[colors, 3]}
-          />
-        </bufferGeometry>
-        <pointsMaterial
-          size={isLightTheme ? 0.048 : 0.038} // slightly larger watercolor ink drops on white
-          vertexColors
-          transparent
-          opacity={isLightTheme ? 0.75 : 0.9}
-          depthWrite={false}
-          blending={isLightTheme ? THREE.NormalBlending : THREE.AdditiveBlending}
-          map={starTexture}
-        />
-      </points>
-    </group>
-  );
-}
-
-function AuthOrbitRing({ radius, speed, angleX, angleZ, color }: {
-  radius: number;
-  speed: number;
-  angleX: number;
-  angleZ: number;
-  color: string;
-}) {
-  const ringRef = useRef<THREE.Group>(null);
-  const satRef = useRef<THREE.Mesh>(null);
-
-  useFrame((state) => {
-    const time = state.clock.getElapsedTime();
-    if (ringRef.current) {
-      ringRef.current.rotation.y = time * speed * 0.12;
-    }
-    if (satRef.current) {
-      const theta = time * speed * 1.5;
-      satRef.current.position.set(
-        Math.cos(theta) * radius,
-        0,
-        Math.sin(theta) * radius
-      );
-    }
-  });
-
-  return (
-    <group rotation={[angleX, 0, angleZ]} ref={ringRef}>
-      <mesh>
-        <torusGeometry args={[radius, 0.0015, 4, 64]} />
-        <meshBasicMaterial color={color} transparent opacity={0.12} />
-      </mesh>
-      <mesh ref={satRef}>
-        <sphereGeometry args={[0.02, 8, 8]} />
-        <meshBasicMaterial color={color} />
-      </mesh>
-    </group>
+    </main>
   );
 }

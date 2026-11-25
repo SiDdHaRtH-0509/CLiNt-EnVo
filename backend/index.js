@@ -1410,4 +1410,12 @@ if (isMainScript && !process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.LAMBDA
   });
 }
 
+export {
+  cleanStringInput,
+  validateEmail,
+  escapeHtml,
+  signToken,
+  verifyToken,
+};
+
 export default app;

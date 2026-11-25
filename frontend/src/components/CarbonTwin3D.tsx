@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useRef, useMemo, useEffect, useState } from 'react';
+import React, { useRef, useMemo, useSyncExternalStore } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
 import * as THREE from 'three';
+
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
 
 // Fallback procedural textured map in case satellite textures fail to load
 function createEarthCanvasTexture(theme: 'light' | 'dark') {
@@ -119,16 +124,16 @@ function OrbitRing({ radius, speed, angleX, angleZ, color, isLightTheme }: {
 function FloatingDust({ count = 80, isLightTheme }: { count?: number; isLightTheme: boolean }) {
   const pointsRef = useRef<THREE.Points>(null);
 
-  // Generate random positions
+  // Generate deterministic particle positions
   const particles = useMemo(() => {
     const temp = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       // Position particles in a sphere shell/field around the globe (radii 2.4 to 6.0)
-      const u = Math.random();
-      const v = Math.random();
+      const u = seededRandom(i * 3 + 1);
+      const v = seededRandom(i * 3 + 2);
       const theta = u * 2.0 * Math.PI;
       const phi = Math.acos(2.0 * v - 1.0);
-      const r = 2.4 + Math.random() * 3.6; // from 2.4 to 6.0
+      const r = 2.4 + seededRandom(i * 3 + 3) * 3.6; // from 2.4 to 6.0
 
       temp[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       temp[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
@@ -224,7 +229,7 @@ function SmokeParticle({ normal, initialAge, randomOffset, score, isLightTheme, 
   // Determine smoke color: white-grey for steam, dark grey for smog, orange-grey for hot fires
   let smokeColor = "#ffffff"; 
   if (score > 400) {
-    smokeColor = Math.random() > 0.45 ? "#242424" : "#ff5500";
+    smokeColor = seededRandom(initialAge * 100 + score) > 0.45 ? "#242424" : "#ff5500";
   } else if (score > 200) {
     smokeColor = "#778899";
   } else if (score > 100) {
@@ -259,9 +264,9 @@ function SmokeEmitter({ position, normal, score, isLightTheme, smokeTexture }: S
       id: i,
       initialAge: i / numParticles,
       randomOffset: new THREE.Vector3(
-        (Math.random() - 0.5) * 0.12,
-        (Math.random() - 0.5) * 0.12,
-        (Math.random() - 0.5) * 0.12
+        (seededRandom(i * 7 + 1) - 0.5) * 0.12,
+        (seededRandom(i * 7 + 2) - 0.5) * 0.12,
+        (seededRandom(i * 7 + 3) - 0.5) * 0.12
       )
     }));
   }, []);
@@ -301,7 +306,7 @@ function MoonGlobe({ isLightTheme }: { isLightTheme: boolean }) {
       );
       tex.colorSpace = THREE.SRGBColorSpace;
       return tex;
-    } catch (e) {
+    } catch {
       return null;
     }
   }, []);
@@ -365,18 +370,19 @@ function EarthGlobe({ isNormal, score, isLightTheme, theme }: {
   // Load realistic satellite Earth texture
   const earthTexture = useMemo(() => {
     const loader = new THREE.TextureLoader();
+    let tex: THREE.Texture | null = null;
     try {
-      const tex = loader.load(
+      tex = loader.load(
         'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_atmos_2048.jpg',
         () => console.log('Satellite Earth map loaded successfully.'),
         undefined,
         (err) => console.warn('Failed loading satellite texture. Falling back to canvas.', err)
       );
       tex.colorSpace = THREE.SRGBColorSpace;
-      return tex;
-    } catch (e) {
-      return createEarthCanvasTexture(theme);
+    } catch {
+      tex = createEarthCanvasTexture(theme);
     }
+    return tex;
   }, [theme]);
 
   // Load clouds texture
@@ -384,7 +390,7 @@ function EarthGlobe({ isNormal, score, isLightTheme, theme }: {
     const loader = new THREE.TextureLoader();
     try {
       return loader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_clouds_1024.png');
-    } catch (e) {
+    } catch {
       return null;
     }
   }, []);
@@ -558,12 +564,12 @@ interface SphereParticlesProps {
 }
 
 export default function CarbonTwin3D({ isNormal, score, theme = 'dark' }: SphereParticlesProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const isLightTheme = false;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!mounted) {
     return (
@@ -577,11 +583,17 @@ export default function CarbonTwin3D({ isNormal, score, theme = 'dark' }: Sphere
   }
 
   return (
-    <div className={`relative w-full h-full rounded-2xl overflow-hidden border transition-all duration-500 ${
+    <div
+      role="region"
+      aria-label={`Interactive 3D Earth Digital Twin showing ${isNormal ? 'stable green biosphere' : 'elevated carbon smog alert'} with ${score} kg CO2e`}
+      className={`relative w-full h-full rounded-2xl overflow-hidden border transition-all duration-500 ${
       isLightTheme 
         ? 'bg-[radial-gradient(circle_at_center,_#e8f0fe_0%,_#f8f9fa_80%)] border-[#dadce0]' 
         : 'bg-[radial-gradient(circle_at_center,_rgba(0,255,102,0.04)_0%,_#0a0a0a_80%)] border-neutral-900'
     }`}>
+      <p className="sr-only">
+        3D Earth Digital Twin visualization. Current ecological status: {isNormal ? 'Stable Green Biosphere' : 'Decaying Smog Alert'}. Total carbon score: {score} kilograms CO2 equivalent.
+      </p>
       {/* 3D R3F Canvas */}
       <Canvas
         camera={{ position: [0, 0, 5.2], fov: 60 }}

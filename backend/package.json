@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
+    "test": "node --test tests/*.test.js",
     "build": "echo 'No build step required'",
     "build:lambda-zip": "powershell -Command \"Compress-Archive -Path index.js, lambda.js, package.json, package-lock.json, node_modules -DestinationPath lambda-deployment.zip -Force\""
   },

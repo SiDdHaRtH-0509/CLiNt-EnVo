@@ -169,12 +169,14 @@ export default function TutorialTour({
       document.querySelectorAll('.tour-highlight').forEach(el => {
         el.classList.remove('tour-highlight');
       });
-      setPopoverStyle({
-        opacity: 0,
-        transform: 'scale(0.95)',
-        pointerEvents: 'none'
+      const resetId = requestAnimationFrame(() => {
+        setPopoverStyle({
+          opacity: 0,
+          transform: 'scale(0.95)',
+          pointerEvents: 'none'
+        });
       });
-      return;
+      return () => cancelAnimationFrame(resetId);
     }
 
     const step = TOUR_STEPS[activeStep];
@@ -197,7 +199,11 @@ export default function TutorialTour({
       }
     }
     
-    repositionPopover();
+    const posTimeout = setTimeout(() => {
+      repositionPopover();
+    }, 0);
+    return () => clearTimeout(posTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStep]);
 
   // Recalculate coordinates on window changes
@@ -215,6 +221,7 @@ export default function TutorialTour({
       window.removeEventListener('resize', handleUpdate);
       window.removeEventListener('scroll', handleUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStep]);
 
   const handleNext = () => {
@@ -267,31 +274,38 @@ export default function TutorialTour({
     <>
       {/* Choice Prompt Modal for first-time visitors */}
       {showPrompt && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in font-mono">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tutorial-welcome-title"
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in font-mono"
+        >
           <div className="glass-panel w-full max-w-sm p-6 bg-neutral-950 border border-neutral-900 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col gap-4 text-center">
             <div className="flex justify-center">
-              <div className="w-12 h-12 rounded-full bg-[var(--neon-blue)]/10 border border-[var(--neon-blue)]/30 flex items-center justify-center text-[var(--neon-blue)]">
+              <div className="w-12 h-12 rounded-full bg-[var(--neon-blue)]/10 border border-[var(--neon-blue)]/30 flex items-center justify-center text-[var(--neon-blue)]" aria-hidden="true">
                 <HelpCircle className="w-6 h-6" />
               </div>
             </div>
             <div className="space-y-1.5">
-              <h3 className="text-sm font-bold text-neutral-100 uppercase tracking-wider">Welcome to CLiNt EnVo!</h3>
-              <p className="text-[10px] text-neutral-450 leading-relaxed max-w-xs mx-auto">
+              <h3 id="tutorial-welcome-title" className="text-sm font-bold text-neutral-100 uppercase tracking-wider">Welcome to CLiNt EnVo!</h3>
+              <p className="text-[10px] text-neutral-400 leading-relaxed max-w-xs mx-auto">
                 Would you like to take a 2-minute interactive step-by-step walkthrough of your digital carbon twin dashboard?
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
+                type="button"
                 onClick={declineTour}
-                className="py-2 border border-neutral-850 hover:bg-neutral-900 rounded font-mono text-[9px] text-neutral-400 hover:text-white cursor-pointer transition-colors text-center font-bold"
+                className="py-2 border border-neutral-850 hover:bg-neutral-900 rounded font-mono text-[9px] text-neutral-300 hover:text-white cursor-pointer transition-colors text-center font-bold"
               >
                 No, Skip
               </button>
               <button
+                type="button"
                 onClick={startTour}
                 className="py-2 bg-[var(--neon-blue)] text-white dark:text-black hover:opacity-90 rounded font-mono text-[9px] cursor-pointer transition-opacity text-center font-bold flex items-center justify-center gap-1.5"
               >
-                <Play className="w-3 h-3 fill-current" />
+                <Play aria-hidden="true" className="w-3 h-3 fill-current" />
                 Yes, Start!
               </button>
             </div>
@@ -303,20 +317,25 @@ export default function TutorialTour({
       {activeStep !== -1 && (
         <div 
           ref={popoverRef}
+          role="dialog"
+          aria-modal="false"
+          aria-label={`Onboarding tour step ${activeStep + 1} of ${TOUR_STEPS.length}`}
           style={popoverStyle}
           className="tour-popover p-4 border border-neutral-850 select-none rounded-xl"
         >
           {/* Header */}
           <div className="flex justify-between items-center pb-2 border-b border-neutral-900/60 mb-2">
-            <span className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">
+            <span className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">
               Tour Step {activeStep + 1} of {TOUR_STEPS.length}
             </span>
             <button 
+              type="button"
               onClick={handleSkip}
-              className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
+              aria-label="Skip walkthrough tour"
+              className="text-neutral-400 hover:text-white transition-colors cursor-pointer"
               title="Skip Walkthrough"
             >
-              <X className="w-3.5 h-3.5" />
+              <X aria-hidden="true" className="w-3.5 h-3.5" />
             </button>
           </div>
 

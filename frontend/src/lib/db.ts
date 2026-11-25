@@ -3,18 +3,24 @@ import { LedgerEntry, RawEvent, processRawEvent } from './carbon';
 const DEMO_FOUNDER_EMAIL = 'siddharth@dubey.me';
 const DEMO_ADMIN_EMAIL = 'clintech0515@gmail.com';
 
+interface StoredUserRecord {
+  email?: string;
+  ledger?: LedgerEntry[];
+  budget?: number;
+}
+
 // Helper to determine active authenticated user email
 export function getActiveUserEmail(): string {
   if (typeof window === 'undefined') return '';
   try {
     const stored = localStorage.getItem('clint_envo_active_user');
     if (stored) {
-      const parsed = JSON.parse(stored);
+      const parsed = JSON.parse(stored) as { email?: string };
       if (parsed && parsed.email) {
         return parsed.email.toLowerCase().trim();
       }
     }
-  } catch (e) {
+  } catch {
     // ignore
   }
   return '';
@@ -128,15 +134,17 @@ export function getLedger(email?: string): LedgerEntry[] {
     const usersStr = localStorage.getItem('clint_envo_users');
     if (usersStr && currentEmail) {
       try {
-        const users = JSON.parse(usersStr);
-        const found = users.find((u: any) => u.email?.toLowerCase().trim() === currentEmail);
+        const users = JSON.parse(usersStr) as StoredUserRecord[];
+        const found = users.find((u) => u.email?.toLowerCase().trim() === currentEmail);
         if (found && Array.isArray(found.ledger)) {
           // Filter out any legacy dummy seeds so real accounts don't see another account's history
-          const cleaned = found.ledger.filter((e: any) => !e.id?.startsWith('seed-'));
+          const cleaned = found.ledger.filter((entry) => !entry.id?.startsWith('seed-'));
           localStorage.setItem(key, JSON.stringify(cleaned));
           return cleaned;
         }
-      } catch (e) {}
+      } catch {
+        // ignore storage parse failure
+      }
     }
 
     // Normal accounts start strictly with their own clean, empty ledger
@@ -196,14 +204,16 @@ export function saveLedger(ledger: LedgerEntry[], email?: string): void {
   try {
     const usersStr = localStorage.getItem('clint_envo_users');
     if (usersStr && currentEmail) {
-      const users = JSON.parse(usersStr);
-      const idx = users.findIndex((u: any) => u.email?.toLowerCase().trim() === currentEmail);
+      const users = JSON.parse(usersStr) as StoredUserRecord[];
+      const idx = users.findIndex((u) => u.email?.toLowerCase().trim() === currentEmail);
       if (idx !== -1) {
         users[idx].ledger = ledger;
         localStorage.setItem('clint_envo_users', JSON.stringify(users));
       }
     }
-  } catch (e) {}
+  } catch {
+    // ignore storage sync failure
+  }
   
   // Asynchronously synchronize with backend cloud node if authenticated
   syncLedgerToBackend(ledger, currentEmail);
@@ -233,14 +243,16 @@ export function clearLedger(email?: string): void {
   try {
     const usersStr = localStorage.getItem('clint_envo_users');
     if (usersStr && currentEmail) {
-      const users = JSON.parse(usersStr);
-      const idx = users.findIndex((u: any) => u.email?.toLowerCase().trim() === currentEmail);
+      const users = JSON.parse(usersStr) as StoredUserRecord[];
+      const idx = users.findIndex((u) => u.email?.toLowerCase().trim() === currentEmail);
       if (idx !== -1) {
         users[idx].ledger = [];
         localStorage.setItem('clint_envo_users', JSON.stringify(users));
       }
     }
-  } catch (e) {}
+  } catch {
+    // ignore storage clear failure
+  }
 
   syncLedgerToBackend([], currentEmail);
 }
@@ -277,14 +289,16 @@ export function getCarbonBudget(email?: string): number {
   try {
     const usersStr = localStorage.getItem('clint_envo_users');
     if (usersStr && currentEmail) {
-      const users = JSON.parse(usersStr);
-      const found = users.find((u: any) => u.email?.toLowerCase().trim() === currentEmail);
+      const users = JSON.parse(usersStr) as StoredUserRecord[];
+      const found = users.find((u) => u.email?.toLowerCase().trim() === currentEmail);
       if (found && typeof found.budget === 'number') {
         localStorage.setItem(key, found.budget.toString());
         return found.budget;
       }
     }
-  } catch (e) {}
+  } catch {
+    // ignore
+  }
 
   return 400;
 }
@@ -298,14 +312,16 @@ export function saveCarbonBudget(budget: number, email?: string): void {
   try {
     const usersStr = localStorage.getItem('clint_envo_users');
     if (usersStr && currentEmail) {
-      const users = JSON.parse(usersStr);
-      const idx = users.findIndex((u: any) => u.email?.toLowerCase().trim() === currentEmail);
+      const users = JSON.parse(usersStr) as StoredUserRecord[];
+      const idx = users.findIndex((u) => u.email?.toLowerCase().trim() === currentEmail);
       if (idx !== -1) {
         users[idx].budget = budget;
         localStorage.setItem('clint_envo_users', JSON.stringify(users));
       }
     }
-  } catch (e) {}
+  } catch {
+    // ignore
+  }
 
   syncLedgerToBackend(getLedger(currentEmail), currentEmail, budget);
 }
@@ -429,7 +445,7 @@ export async function syncLedgerToBackend(ledger: LedgerEntry[], email?: string,
         budget: budget ?? getCarbonBudget(email)
       })
     });
-  } catch (e) {
+  } catch {
     // Non-blocking offline-first
   }
 }

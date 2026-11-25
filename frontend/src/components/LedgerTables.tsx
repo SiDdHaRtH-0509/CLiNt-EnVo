@@ -96,6 +96,7 @@ export default function LedgerTables({ ledger, onClear }: LedgerTablesProps) {
         {/* Actions */}
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => {
               const activeEmail = getActiveUserEmail();
               const report = generateUserReport(activeEmail);
@@ -107,17 +108,21 @@ export default function LedgerTables({ ledger, onClear }: LedgerTablesProps) {
               downloadAnchor.click();
               downloadAnchor.remove();
             }}
+            aria-label="Export Personal Carbon Report and History as JSON"
             className="px-3 py-1.5 text-xs font-mono text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 border border-emerald-500/30 bg-emerald-500/10 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer font-medium"
             title="Export Personal Carbon Report & History as JSON"
           >
-            <span>📥 Export Report ↓</span>
+            <span aria-hidden="true">📥</span>
+            <span>Export Report ↓</span>
           </button>
 
           <button
+            type="button"
             onClick={onClear}
+            aria-label="Reset personal carbon ledger database"
             className="px-3 py-1.5 text-xs font-mono text-red-600 dark:text-red-400 hover:text-red-700 border border-red-500/30 bg-red-500/10 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 aria-hidden="true" className="w-3.5 h-3.5" />
             <span>Reset DB</span>
           </button>
         </div>
@@ -127,8 +132,10 @@ export default function LedgerTables({ ledger, onClear }: LedgerTablesProps) {
       <div className="flex flex-col sm:flex-row gap-3 font-mono">
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
+          <label htmlFor="ledger-search-input" className="sr-only">Search ledger transactions, logic, or categories</label>
+          <Search aria-hidden="true" className="absolute left-3 top-2.5 w-4 h-4 text-[var(--muted)]" />
           <input
+            id="ledger-search-input"
             type="text"
             placeholder="Search transactions, logic, categories..."
             value={search}
@@ -139,8 +146,10 @@ export default function LedgerTables({ ledger, onClear }: LedgerTablesProps) {
 
         {/* Source Filter */}
         <div className="flex items-center gap-2 shrink-0">
-          <Filter className="w-3.5 h-3.5 text-[var(--muted)]" />
+          <label htmlFor="ledger-source-filter" className="sr-only">Filter ledger by telemetry source</label>
+          <Filter aria-hidden="true" className="w-3.5 h-3.5 text-[var(--muted)]" />
           <select
+            id="ledger-source-filter"
             value={filterSource}
             onChange={(e) => setFilterSource(e.target.value)}
             className="bg-[#edf2ee] dark:bg-[#14231b] border border-[var(--line)] rounded-lg px-3 py-2 text-xs text-[var(--ink)] outline-none cursor-pointer"
@@ -156,28 +165,39 @@ export default function LedgerTables({ ledger, onClear }: LedgerTablesProps) {
       {/* Data Table */}
       <div className="flex-1 overflow-x-auto border border-[var(--line)] bg-[var(--paper)] rounded-lg">
         <table className="w-full border-collapse text-left text-xs font-mono">
+          <caption className="sr-only">Personal Carbon Telemetry Ledger Events</caption>
           <thead>
             <tr className="border-b border-[var(--line)] bg-[#edf2ee] dark:bg-[#14231b] text-[var(--muted)] text-[10px] uppercase tracking-wider">
-              <th className="p-3 font-semibold">Source</th>
-              <th className="p-3 font-semibold">Title</th>
-              <th 
-                className="p-3 font-semibold cursor-pointer hover:text-[var(--ink)] transition-colors"
-                onClick={() => toggleSort('timestamp')}
+              <th scope="col" className="p-3 font-semibold">Source</th>
+              <th scope="col" className="p-3 font-semibold">Title</th>
+              <th
+                scope="col"
+                aria-sort={sortBy === 'timestamp' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+                className="p-3 font-semibold"
               >
-                <div className="flex items-center gap-1">
-                  Timestamp <ArrowUpDown className="w-3 h-3" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('timestamp')}
+                  className="flex items-center gap-1 hover:text-[var(--ink)] transition-colors cursor-pointer uppercase font-semibold"
+                >
+                  Timestamp <ArrowUpDown aria-hidden="true" className="w-3 h-3" />
+                </button>
               </th>
-              <th className="p-3 font-semibold text-right">Telemetry Amount</th>
-              <th 
-                className="p-3 font-semibold text-right cursor-pointer hover:text-[var(--ink)] transition-colors"
-                onClick={() => toggleSort('carbon')}
+              <th scope="col" className="p-3 font-semibold text-right">Telemetry Amount</th>
+              <th
+                scope="col"
+                aria-sort={sortBy === 'carbon' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+                className="p-3 font-semibold text-right"
               >
-                <div className="flex items-center justify-end gap-1">
-                  GHG Impact <ArrowUpDown className="w-3 h-3" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('carbon')}
+                  className="flex items-center justify-end gap-1 ml-auto hover:text-[var(--ink)] transition-colors cursor-pointer uppercase font-semibold"
+                >
+                  GHG Impact <ArrowUpDown aria-hidden="true" className="w-3 h-3" />
+                </button>
               </th>
-              <th className="p-3 font-semibold hidden lg:table-cell">Pipeline Logic</th>
+              <th scope="col" className="p-3 font-semibold hidden lg:table-cell">Pipeline Logic</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--line)]">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { 
   getLedger, 
   getStats, 
@@ -8,7 +8,6 @@ import {
   LedgerStats, 
   setOnboardingStatus,
   addRawEvent,
-  getCarbonBudget,
   saveCarbonBudget,
   getActiveUserEmail,
   saveLedger
@@ -26,17 +25,9 @@ import {
   LogOut,
   ShieldCheck,
   ShieldAlert,
-  User,
-  Globe,
-  Camera,
   CheckCircle2,
-  AlertCircle,
   Loader2,
-  Database,
   Activity,
-  Cpu,
-  Mail,
-  Zap,
   TrendingDown,
   TrendingUp,
   Sparkles,
@@ -47,11 +38,24 @@ import {
   Wind,
   Server,
   Key,
-  Wifi,
   Check,
-  ExternalLink,
-  Radio
+  ExternalLink
 } from 'lucide-react';
+
+interface UserRecord {
+  name: string;
+  email: string;
+  password?: string;
+  region?: string;
+  profilePic?: string;
+}
+
+interface IntegrationsStatusData {
+  services?: Record<string, unknown>;
+  pingLatencies?: {
+    openMeteo?: string;
+  };
+}
 
 export default function Dashboard() {
   const escapeHtml = (unsafe: string): string => {
@@ -93,8 +97,11 @@ export default function Dashboard() {
     isNormal: true,
   });
   
-  const [mounted, setMounted] = useState(false);
-  const [connectionTime, setConnectionTime] = useState<string>('');
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const theme = 'dark';
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState<'twin' | 'aqi' | 'ledger' | 'pipeline'>('twin');
@@ -104,7 +111,7 @@ export default function Dashboard() {
   const [user, setUser] = useState({ name: '', email: '', region: '', profilePic: '' });
   const [showProfile, setShowProfile] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminUsers, setAdminUsers] = useState<UserRecord[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
 
   // User Profile Form States
@@ -114,7 +121,6 @@ export default function Dashboard() {
   const [profileRegion, setProfileRegion] = useState('');
   const [profilePicSeed, setProfilePicSeed] = useState('');
   const [profilePicUrl, setProfilePicUrl] = useState('');
-  const [showProfilePassword, setShowProfilePassword] = useState(false);
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
   const [profileUpdating, setProfileUpdating] = useState(false);
 
@@ -135,34 +141,66 @@ export default function Dashboard() {
   const [offsetAmt, setOffsetAmt] = useState(500);
   const [offsetProject, setOffsetProject] = useState('reforestation');
   const [settingsActiveTab, setSettingsActiveTab] = useState<'status' | 'aqi' | 'ai_email'>('status');
-  const [integrationsStatus, setIntegrationsStatus] = useState<any>(null);
-  const [integrationsLoading, setIntegrationsLoading] = useState(false);
+  const [integrationsStatus, setIntegrationsStatus] = useState<IntegrationsStatusData | null>(null);
   const [isPinging, setIsPinging] = useState(false);
   const [settingsSaveMsg, setSettingsSaveMsg] = useState<string | null>(null);
 
-  const fetchIntegrationsStatus = async (ping = false) => {
+  const fetchIntegrationsStatus = useCallback(async (ping = false) => {
     if (ping) setIsPinging(true);
-    else setIntegrationsLoading(true);
     try {
       const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/api/integrations/status${ping ? '?ping=true' : ''}`);
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as IntegrationsStatusData;
         setIntegrationsStatus(data);
       }
     } catch (err) {
       console.warn('Failed to fetch integrations health:', err);
     } finally {
       setIsPinging(false);
-      setIntegrationsLoading(false);
     }
+  }, []);
+
+  const openSettingsModal = () => {
+    setShowSettings(true);
+    fetchIntegrationsStatus(false);
   };
 
-  useEffect(() => {
-    if (showSettings) {
-      fetchIntegrationsStatus(false);
+  const openProfileModal = () => {
+    if (user) {
+      setProfileName(user.name || '');
+      setProfileEmail(user.email || '');
+      setProfilePassword('');
+      setProfileRegion(user.region || 'Asia-Pacific (India)');
+
+      let seed = 'avatar';
+      if (user.profilePic && user.profilePic.includes('seed=')) {
+        const parts = user.profilePic.split('seed=');
+        if (parts.length > 1) {
+          seed = decodeURIComponent(parts[1].split('&')[0]);
+        }
+      } else if (user.name) {
+        seed = user.name;
+      }
+      setProfilePicSeed(seed);
+      setProfilePicUrl(user.profilePic || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(seed)}`);
+      setProfileMessage({ type: '', text: '' });
     }
-  }, [showSettings]);
+    setShowProfile(true);
+  };
+
+  const syncTourStepTab = (step: number) => {
+    setActiveStep(step);
+    if (step === 6) {
+      setActiveTab('pipeline');
+    } else if (step === 7) {
+      setActiveTab('aqi');
+    } else if (step === 8) {
+      setActiveTab('ledger');
+    } else if (step >= 0 && step <= 5) {
+      setActiveTab('twin');
+    }
+  };
 
   // Audit States
   const [auditStatus, setAuditStatus] = useState<'idle' | 'auditing' | 'passed'>('idle');
@@ -196,104 +234,97 @@ export default function Dashboard() {
     }, 600);
   };
 
-  // Load ledger, stats, theme, credentials, and user on mount
-  useEffect(() => {
-    setMounted(true);
-    setConnectionTime(new Date().toLocaleTimeString());
-    
-    // Permanent dark theme
-    localStorage.setItem('clint_theme', 'dark');
-    document.documentElement.classList.remove('light');
-    document.documentElement.classList.add('dark');
-
-    // Load credentials
-    setGeminiKey(localStorage.getItem('gemini_api_key') || '');
-    setGmailUser(localStorage.getItem('gmail_user') || '');
-    setGmailAppPass(localStorage.getItem('gmail_app_password') || '');
-    setResendKey(localStorage.getItem('resend_api_key') || '');
-    setAqiProvider(localStorage.getItem('clint_aqi_provider') || 'open-meteo');
-    setAqiApiKey(localStorage.getItem('clint_aqi_api_key') || '');
-    setAqiCustomUrl(localStorage.getItem('clint_aqi_custom_url') || '');
-    setDataGovApiKey(localStorage.getItem('clint_data_gov_key') || '');
-
-    // Load system broadcast
-    const savedBroadcast = localStorage.getItem('clint_system_broadcast') || '';
-    setSystemBroadcast(savedBroadcast);
-
-    // Load active user
-    const savedUserStr = localStorage.getItem('clint_envo_active_user');
-    if (savedUserStr) {
-      let activeUser: any = null;
-      try {
-        activeUser = JSON.parse(savedUserStr);
-        if (activeUser) {
-          setUser(activeUser);
-          setIsAuthenticated(true);
-        }
-      } catch (e) {
-        console.warn('Failed parsing active user', e);
-      }
-
-      // Auto-sync local storage settings to server database if admin session
-      if (activeUser && activeUser.email && activeUser.email.toLowerCase() === 'clintech0515@gmail.com') {
-        const localGeminiKey = localStorage.getItem('gemini_api_key') || '';
-        const localGmailUser = localStorage.getItem('gmail_user') || '';
-        const localGmailAppPass = localStorage.getItem('gmail_app_password') || '';
-        const localResendKey = localStorage.getItem('resend_api_key') || '';
-
-        if (localGeminiKey || localGmailUser || localResendKey) {
-          const backendUrl = getBackendUrl();
-          fetch(`${backendUrl}/api/admin/settings`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('clint_token') || ''}`
-            },
-            body: JSON.stringify({
-              geminiApiKey: localGeminiKey,
-              gmailUser: localGmailUser,
-              gmailAppPassword: localGmailAppPass,
-              resendApiKey: localResendKey
-            })
-          })
-          .then(res => res.json())
-          .then(data => console.log('Admin settings auto-synced to server:', data.message))
-          .catch(err => console.warn('Failed auto-syncing admin settings to server:', err));
-        }
-      }
-    } else {
-      setUser({
-        name: '',
-        email: '',
-        region: '',
-        profilePic: ''
-      });
-      setIsAuthenticated(false);
-    }
-
-    refreshData();
-  }, []);
-
-  // Onboarding tour navigation synchronization
-  useEffect(() => {
-    if (activeStep === 6) {
-      setActiveTab('pipeline');
-    } else if (activeStep === 7) {
-      setActiveTab('aqi');
-    } else if (activeStep === 8) {
-      setActiveTab('ledger');
-    } else if (activeStep >= 0 && activeStep <= 5) {
-      setActiveTab('twin');
-    }
-  }, [activeStep]);
-
-  const refreshData = () => {
+  const refreshData = useCallback(() => {
     const activeEmail = getActiveUserEmail();
     const currentLedger = getLedger(activeEmail);
     const currentStats = getStats(activeEmail);
     setLedger(currentLedger);
     setStats(currentStats);
-  };
+  }, []);
+
+  // Load ledger, stats, theme, credentials, and user on mount
+  useEffect(() => {
+    const initTimeout = setTimeout(() => {
+      // Permanent dark theme
+      localStorage.setItem('clint_theme', 'dark');
+      document.documentElement.classList.remove('light');
+      document.documentElement.classList.add('dark');
+
+      // Load credentials
+      setGeminiKey(localStorage.getItem('gemini_api_key') || '');
+      setGmailUser(localStorage.getItem('gmail_user') || '');
+      setGmailAppPass(localStorage.getItem('gmail_app_password') || '');
+      setResendKey(localStorage.getItem('resend_api_key') || '');
+      setAqiProvider(localStorage.getItem('clint_aqi_provider') || 'open-meteo');
+      setAqiApiKey(localStorage.getItem('clint_aqi_api_key') || '');
+      setAqiCustomUrl(localStorage.getItem('clint_aqi_custom_url') || '');
+      setDataGovApiKey(localStorage.getItem('clint_data_gov_key') || '');
+
+      // Load system broadcast
+      const savedBroadcast = localStorage.getItem('clint_system_broadcast') || '';
+      setSystemBroadcast(savedBroadcast);
+
+      // Load active user
+      const savedUserStr = localStorage.getItem('clint_envo_active_user');
+      if (savedUserStr) {
+        let activeUser: UserRecord | null = null;
+        try {
+          activeUser = JSON.parse(savedUserStr) as UserRecord;
+          if (activeUser) {
+            setUser({
+              name: activeUser.name || '',
+              email: activeUser.email || '',
+              region: activeUser.region || 'Asia-Pacific (India)',
+              profilePic: activeUser.profilePic || ''
+            });
+            setIsAuthenticated(true);
+          }
+        } catch (e) {
+          console.warn('Failed parsing active user', e);
+        }
+
+        // Auto-sync local storage settings to server database if admin session
+        if (activeUser && activeUser.email && activeUser.email.toLowerCase() === 'clintech0515@gmail.com') {
+          const localGeminiKey = localStorage.getItem('gemini_api_key') || '';
+          const localGmailUser = localStorage.getItem('gmail_user') || '';
+          const localGmailAppPass = localStorage.getItem('gmail_app_password') || '';
+          const localResendKey = localStorage.getItem('resend_api_key') || '';
+
+          if (localGeminiKey || localGmailUser || localResendKey) {
+            const backendUrl = getBackendUrl();
+            fetch(`${backendUrl}/api/admin/settings`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('clint_token') || ''}`
+              },
+              body: JSON.stringify({
+                geminiApiKey: localGeminiKey,
+                gmailUser: localGmailUser,
+                gmailAppPassword: localGmailAppPass,
+                resendApiKey: localResendKey
+              })
+            })
+            .then(res => res.json())
+            .then(data => console.log('Admin settings auto-synced to server:', data.message))
+            .catch(err => console.warn('Failed auto-syncing admin settings to server:', err));
+          }
+        }
+      } else {
+        setUser({
+          name: '',
+          email: '',
+          region: '',
+          profilePic: ''
+        });
+        setIsAuthenticated(false);
+      }
+
+      refreshData();
+    }, 0);
+
+    return () => clearTimeout(initTimeout);
+  }, [refreshData]);
 
   const handleBudgetChange = (newBudget: number) => {
     const activeEmail = getActiveUserEmail();
@@ -318,11 +349,11 @@ export default function Dashboard() {
     const cleanEmail = email.toLowerCase().trim();
     
     // Check if there is an existing user profile in multi-user storage
-    let existingProfile = null;
+    let existingProfile: UserRecord | null = null;
     try {
-      const storedUsers = JSON.parse(localStorage.getItem('clint_envo_users') || '[]');
-      existingProfile = storedUsers.find((u: any) => u.email && u.email.toLowerCase().trim() === cleanEmail);
-    } catch (e) {
+      const storedUsers = JSON.parse(localStorage.getItem('clint_envo_users') || '[]') as UserRecord[];
+      existingProfile = storedUsers.find((u) => u.email && u.email.toLowerCase().trim() === cleanEmail) || null;
+    } catch {
       // ignore
     }
 
@@ -357,7 +388,7 @@ export default function Dashboard() {
           }
         }
       }
-    } catch (e) {
+    } catch {
       // Offline fallback
     }
 
@@ -424,28 +455,6 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    if (showProfile && user) {
-      setProfileName(user.name || '');
-      setProfileEmail(user.email || '');
-      setProfilePassword('');
-      setProfileRegion(user.region || 'Asia-Pacific (India)');
-      
-      let seed = 'avatar';
-      if (user.profilePic && user.profilePic.includes('seed=')) {
-        const parts = user.profilePic.split('seed=');
-        if (parts.length > 1) {
-          seed = decodeURIComponent(parts[1].split('&')[0]);
-        }
-      } else if (user.name) {
-        seed = user.name;
-      }
-      setProfilePicSeed(seed);
-      setProfilePicUrl(user.profilePic || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(seed)}`);
-      setProfileMessage({ type: '', text: '' });
-    }
-  }, [showProfile, user]);
-
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !user.email) return;
@@ -492,15 +501,16 @@ export default function Dashboard() {
       if (data.token) {
         localStorage.setItem('clint_token', data.token);
       }
-    } catch (err: any) {
-      console.warn('Backend update failed/offline. Reverting to local storage:', err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('Backend update failed/offline. Reverting to local storage:', msg);
       fallbackToLocal = true;
     }
 
     if (fallbackToLocal) {
       const usersStr = localStorage.getItem('clint_envo_users');
-      let users = usersStr ? JSON.parse(usersStr) : [];
-      const index = users.findIndex((u: any) => u.email.toLowerCase() === user.email.toLowerCase());
+      const users = (usersStr ? JSON.parse(usersStr) : []) as UserRecord[];
+      const index = users.findIndex((u) => u.email.toLowerCase() === user.email.toLowerCase());
       if (index !== -1) {
         users[index].name = payload.name;
         if (payload.newEmail) users[index].email = payload.newEmail;
@@ -511,8 +521,8 @@ export default function Dashboard() {
         updatedUser = {
           name: users[index].name,
           email: users[index].email,
-          region: users[index].region,
-          profilePic: users[index].profilePic
+          region: users[index].region || 'Asia-Pacific (India)',
+          profilePic: users[index].profilePic || ''
         };
       }
     }
@@ -531,28 +541,28 @@ export default function Dashboard() {
 
   const fetchAdminUsers = async () => {
     setAdminLoading(true);
-    let serverList = [];
+    let serverList: UserRecord[] = [];
     try {
       const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/api/admin/users`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('clint_token') || ''}` }
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { users?: UserRecord[] };
         serverList = data.users || [];
       }
     } catch (e) {
       console.warn('Backend admin fetch failed:', e);
     }
 
-    const localList = [
+    const localList: UserRecord[] = [
       { name: 'CLiNt-Tech Administrator', email: 'CLiNtech0515@gmail.com', region: 'Asia-Pacific (India)', profilePic: 'https://api.dicebear.com/7.x/bottts/svg?seed=admin' },
       { name: 'Siddharth Gopal Dubey', email: 'siddharth@dubey.me', region: 'Asia-Pacific (India)', profilePic: 'https://api.dicebear.com/7.x/bottts/svg?seed=founder' }
     ];
 
-    const mergedMap = new Map();
-    serverList.forEach((u: any) => u.email && mergedMap.set(u.email.toLowerCase(), u));
-    localList.forEach((u: any) => u.email && !mergedMap.has(u.email.toLowerCase()) && mergedMap.set(u.email.toLowerCase(), u));
+    const mergedMap = new Map<string, UserRecord>();
+    serverList.forEach((u) => u.email && mergedMap.set(u.email.toLowerCase(), u));
+    localList.forEach((u) => u.email && !mergedMap.has(u.email.toLowerCase()) && mergedMap.set(u.email.toLowerCase(), u));
 
     setAdminUsers(Array.from(mergedMap.values()));
     setAdminLoading(false);
@@ -579,7 +589,7 @@ export default function Dashboard() {
   };
 
   const applyCarbonOffset = () => {
-    let carbonAmount = offsetProject === 'reforestation' ? Math.round(offsetAmt * 0.08) : offsetProject === 'methane' ? Math.round(offsetAmt * 0.12) : Math.round(offsetAmt * 0.18);
+    const carbonAmount = offsetProject === 'reforestation' ? Math.round(offsetAmt * 0.08) : offsetProject === 'methane' ? Math.round(offsetAmt * 0.12) : Math.round(offsetAmt * 0.18);
     const title = offsetProject === 'reforestation' ? 'Reforestation Seedlings' : offsetProject === 'methane' ? 'Agriculture Methane Digester' : 'Wind Turbine Grid';
 
     const offsetEvent = {
@@ -678,23 +688,31 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--bg)] text-[var(--ink)] p-4 sm:p-6 lg:p-8 relative selection:bg-emerald-500 selection:text-white transition-colors duration-200">
-      
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] p-4 sm:p-6 lg:p-8 relative selection:bg-emerald-500 selection:text-white transition-colors duration-200">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[2000] focus:px-4 focus:py-2 focus:bg-[#1e5945] focus:text-white focus:rounded-lg focus:font-mono focus:text-xs"
+      >
+        Skip to main dashboard content
+      </a>
+
       <div className="max-w-[1440px] mx-auto flex flex-col gap-6 relative z-10">
 
         {/* Global Security Broadcast Bar */}
         {systemBroadcast && (
-          <div className="w-full px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center justify-between gap-4 font-mono text-xs text-amber-700 dark:text-amber-300 shadow-sm relative overflow-hidden shrink-0 z-20">
+          <div role="status" aria-live="polite" className="w-full px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center justify-between gap-4 font-mono text-xs text-amber-700 dark:text-amber-300 shadow-sm relative overflow-hidden shrink-0 z-20">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-200 font-bold uppercase text-[9px] shrink-0">ALERT</span>
               <span className="block truncate">{systemBroadcast}</span>
             </div>
             {user.email && user.email.toLowerCase() === 'clintech0515@gmail.com' && (
               <button
+                type="button"
                 onClick={() => {
                   setSystemBroadcast('');
                   localStorage.removeItem('clint_system_broadcast');
                 }}
+                aria-label="Clear system security broadcast"
                 className="px-2 py-1 border border-amber-600/40 rounded hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 cursor-pointer text-[9px] font-mono"
               >
                 Clear
@@ -708,7 +726,7 @@ export default function Dashboard() {
           
           {/* Brand Identity & Breadcrumbs */}
           <div className="flex items-center gap-3.5">
-            <div className="w-9 h-9 rounded-lg bg-[#1e5945] flex items-center justify-center shrink-0 shadow-sm">
+            <div className="w-9 h-9 rounded-lg bg-[#1e5945] flex items-center justify-center shrink-0 shadow-sm" aria-hidden="true">
               <span className="text-white text-base">🌱</span>
             </div>
             <div>
@@ -727,55 +745,77 @@ export default function Dashboard() {
           </div>
 
           {/* Navigation Tracks (Segmented Field Bar) */}
-          <nav className="flex items-center gap-1 bg-[#edf2ee] dark:bg-[#14231b] p-1 rounded-lg border border-[var(--line)] font-mono text-xs">
-            <button
-              onClick={() => setActiveTab('twin')}
-              className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
-                activeTab === 'twin'
-                  ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
-                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>◉</span>
-              <span>Biosphere</span>
-            </button>
+          <nav aria-label="Dashboard sections" className="flex items-center gap-1 bg-[#edf2ee] dark:bg-[#14231b] p-1 rounded-lg border border-[var(--line)] font-mono text-xs">
+            <div role="tablist" aria-label="Dashboard views" className="flex items-center gap-1">
+              <button
+                type="button"
+                role="tab"
+                id="tab-twin"
+                aria-selected={activeTab === 'twin'}
+                aria-controls="panel-twin"
+                onClick={() => setActiveTab('twin')}
+                className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
+                  activeTab === 'twin'
+                    ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
+                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <span aria-hidden="true">◉</span>
+                <span>Biosphere</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('aqi')}
-              className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
-                activeTab === 'aqi'
-                  ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
-                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>⌖</span>
-              <span>Air Intel & AQI</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            </button>
+              <button
+                type="button"
+                role="tab"
+                id="tab-aqi"
+                aria-selected={activeTab === 'aqi'}
+                aria-controls="panel-aqi"
+                onClick={() => setActiveTab('aqi')}
+                className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
+                  activeTab === 'aqi'
+                    ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
+                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <span aria-hidden="true">⌖</span>
+                <span>Air Intel & AQI</span>
+                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              </button>
 
-            <button
-              onClick={() => setActiveTab('ledger')}
-              className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
-                activeTab === 'ledger'
-                  ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
-                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>▤</span>
-              <span>Ledger DB</span>
-            </button>
+              <button
+                type="button"
+                role="tab"
+                id="tab-ledger"
+                aria-selected={activeTab === 'ledger'}
+                aria-controls="panel-ledger"
+                onClick={() => setActiveTab('ledger')}
+                className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
+                  activeTab === 'ledger'
+                    ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
+                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <span aria-hidden="true">▤</span>
+                <span>Ledger DB</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('pipeline')}
-              className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
-                activeTab === 'pipeline'
-                  ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
-                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>⚡</span>
-              <span>Pipeline</span>
-            </button>
+              <button
+                type="button"
+                role="tab"
+                id="tab-pipeline"
+                aria-selected={activeTab === 'pipeline'}
+                aria-controls="panel-pipeline"
+                onClick={() => setActiveTab('pipeline')}
+                className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
+                  activeTab === 'pipeline'
+                    ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
+                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <span aria-hidden="true">⚡</span>
+                <span>Pipeline</span>
+              </button>
+            </div>
           </nav>
 
           {/* User Controls & Actions */}
@@ -783,20 +823,22 @@ export default function Dashboard() {
             
             {/* Live Indicator */}
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>LIVE SYNC</span>
             </div>
 
             {/* User Profile */}
             <button
-              onClick={() => setShowProfile(true)}
+              type="button"
+              onClick={openProfileModal}
+              aria-label={`Open profile for ${user.name || 'Operator'}`}
               className="px-2.5 py-1 rounded-md border border-[var(--line)] bg-[var(--paper)] hover:bg-[#edf2ee] dark:hover:bg-[#20392a] flex items-center gap-1.5 cursor-pointer text-xs"
               title="User Profile"
             >
               {user.profilePic ? (
-                <img src={user.profilePic} alt="Avatar" className="w-4 h-4 rounded-full object-cover" />
+                <img src={user.profilePic} alt={`${user.name || 'Operator'} avatar`} className="w-4 h-4 rounded-full object-cover" />
               ) : (
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <ShieldCheck aria-hidden="true" className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               )}
               <span className="font-sans font-medium text-[var(--ink)]">{user.name ? user.name.split(' ')[0] : 'Operator'}</span>
             </button>
@@ -804,45 +846,56 @@ export default function Dashboard() {
             {/* Admin Deck */}
             {user.email && user.email.toLowerCase() === 'clintech0515@gmail.com' && (
               <button
+                type="button"
                 onClick={() => {
                   setShowAdmin(true);
                   fetchAdminUsers();
                 }}
+                aria-label="Open Administrator Command Deck"
                 className="px-2.5 py-1 border border-red-500/30 bg-red-500/10 rounded-md text-red-600 dark:text-red-400 flex items-center gap-1 cursor-pointer text-xs"
               >
-                <ShieldAlert className="w-3 h-3" />
+                <ShieldAlert aria-hidden="true" className="w-3 h-3" />
                 <span className="hidden sm:inline">Admin</span>
               </button>
             )}
 
             {/* Settings */}
             <button
-              onClick={() => setShowSettings(true)}
+              type="button"
+              onClick={openSettingsModal}
+              aria-label="Open System API and Telemetry Settings"
               className="p-1.5 border border-[var(--line)] bg-[var(--paper)] hover:bg-[#edf2ee] dark:hover:bg-[#20392a] rounded-md cursor-pointer text-[var(--muted)] hover:text-[var(--ink)]"
               title="System Settings"
             >
-              <Settings className="w-3.5 h-3.5" />
+              <Settings aria-hidden="true" className="w-3.5 h-3.5" />
             </button>
 
             {/* Tour */}
             <button
-              onClick={() => setActiveStep(0)}
+              type="button"
+              onClick={() => syncTourStepTab(0)}
+              aria-label="Start interactive onboarding tour"
+              title="Start Interactive Tour"
               className="px-2 py-1 border border-[var(--line)] bg-[var(--paper)] hover:bg-[#edf2ee] dark:hover:bg-[#20392a] rounded-md text-[var(--muted)] hover:text-[var(--ink)] flex items-center gap-1 cursor-pointer text-xs"
             >
-              <span>🗺️</span>
+              <span aria-hidden="true">🗺️</span>
             </button>
 
             {/* Logout */}
             <button
+              type="button"
               onClick={handleLogout}
+              aria-label="Log out and disconnect session"
               className="p-1.5 border border-[var(--line)] bg-[var(--paper)] hover:bg-amber-500/10 rounded-md text-amber-600 dark:text-amber-400 cursor-pointer"
               title="Disconnect Session"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut aria-hidden="true" className="w-3.5 h-3.5" />
             </button>
 
           </div>
         </header>
+
+        <main id="main-content" className="flex flex-col gap-6">
 
         {/* Executive High-Level Metrics Summary Bar (AirWatch Field Metrics) */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -880,12 +933,18 @@ export default function Dashboard() {
               <span className="text-xs text-[var(--muted)] font-mono">kg / wk</span>
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs font-mono">
+              <label htmlFor="weekly-budget-slider" className="sr-only">Weekly Carbon Budget Allowance in kilograms</label>
               <input 
+                id="weekly-budget-slider"
                 type="range" 
                 min="100" 
                 max="1000" 
                 step="25"
                 value={stats.carbonBudget}
+                aria-label="Weekly Carbon Budget Allowance"
+                aria-valuemin={100}
+                aria-valuemax={1000}
+                aria-valuenow={stats.carbonBudget}
                 onChange={e => handleBudgetChange(parseInt(e.target.value, 10))}
                 className="w-full h-1.5 bg-[#edf2ee] dark:bg-[#14231b] rounded-lg appearance-none cursor-pointer accent-[#1e5945] dark:accent-[#79c696]"
               />
@@ -936,7 +995,7 @@ export default function Dashboard() {
         
         {/* TAB 1: BIOSPHERE & SIMULATOR */}
         {activeTab === 'twin' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
+          <div role="tabpanel" id="panel-twin" aria-labelledby="tab-twin" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
             
             {/* 3D WebGL Biosphere */}
             <div className="lg:col-span-7 flex flex-col gap-6">
@@ -981,8 +1040,9 @@ export default function Dashboard() {
 
                 <div className="space-y-4 text-xs">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[9px] text-[var(--muted)] uppercase font-bold tracking-wider">Ecological Initiative</label>
+                    <label htmlFor="offset-project-select" className="text-[9px] text-[var(--muted)] uppercase font-bold tracking-wider">Ecological Initiative</label>
                     <select
+                      id="offset-project-select"
                       value={offsetProject}
                       onChange={e => setOffsetProject(e.target.value)}
                       className="w-full px-3 py-2 bg-[#edf2ee] dark:bg-[#14231b] border border-[var(--line)] rounded-lg text-[var(--ink)] outline-none focus:border-emerald-500 font-sans text-xs"
@@ -995,15 +1055,20 @@ export default function Dashboard() {
 
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between text-[9px] text-[var(--muted)] uppercase font-bold tracking-wider">
-                      <span>Investment Budget</span>
+                      <label htmlFor="offset-investment-slider">Investment Budget</label>
                       <span className="text-[var(--ink)] font-bold">₹{offsetAmt} INR</span>
                     </div>
                     <input
+                      id="offset-investment-slider"
                       type="range"
                       min="100"
                       max="5000"
                       step="100"
                       value={offsetAmt}
+                      aria-label="Carbon offset investment budget in INR"
+                      aria-valuemin={100}
+                      aria-valuemax={5000}
+                      aria-valuenow={offsetAmt}
                       onChange={e => setOffsetAmt(parseInt(e.target.value, 10))}
                       className="w-full h-1.5 bg-[#edf2ee] dark:bg-[#14231b] rounded-lg appearance-none cursor-pointer accent-[#1e5945] dark:accent-[#79c696]"
                     />
@@ -1033,21 +1098,21 @@ export default function Dashboard() {
 
         {/* TAB: REAL-TIME ATMOSPHERIC AQI & AIR QUALITY INTEL */}
         {activeTab === 'aqi' && (
-          <div className="animate-fade-in" id="tour-aqi">
+          <div role="tabpanel" aria-labelledby="tab-aqi" className="animate-fade-in" id="tour-aqi">
             <AqiMonitor theme={theme} onNewTelemetry={handleNewEntry} userEmail={user.email} />
           </div>
         )}
 
         {/* TAB 2: FINANCIAL CARBON LEDGER */}
         {activeTab === 'ledger' && (
-          <div className="animate-fade-in" id="tour-ledger">
+          <div role="tabpanel" aria-labelledby="tab-ledger" className="animate-fade-in" id="tour-ledger">
             <LedgerTables ledger={ledger} onClear={handleClear} />
           </div>
         )}
 
         {/* TAB 3: PIPELINE & AUDIT */}
         {activeTab === 'pipeline' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
+          <div role="tabpanel" id="panel-pipeline" aria-labelledby="tab-pipeline" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
             
             {/* Architecture Flow */}
             <div className="lg:col-span-7 flex flex-col gap-6">
@@ -1140,6 +1205,8 @@ export default function Dashboard() {
           </div>
         )}
 
+        </main>
+
       </div>
 
       {/* Floating AI Copilot Drawer Component */}
@@ -1147,9 +1214,9 @@ export default function Dashboard() {
 
       {/* Onboarding Tour Interactive Modal */}
       {showTourPrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-mono">
+        <div role="dialog" aria-modal="true" aria-labelledby="tour-prompt-title" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-mono">
           <div className="bg-[var(--paper)] border border-[var(--line)] p-6 rounded-xl max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-[var(--ink)] font-display">Welcome to CLiNt EnVo</h3>
+            <h3 id="tour-prompt-title" className="text-base font-bold text-[var(--ink)] font-display">Welcome to CLiNt EnVo</h3>
             <p className="text-xs text-[var(--muted)] leading-relaxed font-sans">
               Would you like to start an interactive tour to explore your WebGL 3D Biosphere, telemetry forms, and financial carbon ledger?
             </p>
@@ -1163,7 +1230,7 @@ export default function Dashboard() {
               <button
                 onClick={() => {
                   setShowTourPrompt(false);
-                  setActiveStep(0);
+                  syncTourStepTab(0);
                 }}
                 className="px-4 py-2 bg-[#1e5945] hover:bg-[#286e57] text-white font-medium rounded-lg text-xs cursor-pointer transition-all shadow-sm"
               >
@@ -1176,30 +1243,31 @@ export default function Dashboard() {
 
       <TutorialTour 
         activeStep={activeStep}
-        onNext={() => setActiveStep(prev => prev + 1)}
-        onPrev={() => setActiveStep(prev => Math.max(-1, prev - 1))}
+        onNext={() => syncTourStepTab(activeStep + 1)}
+        onPrev={() => syncTourStepTab(Math.max(-1, activeStep - 1))}
         onClose={() => setActiveStep(-1)}
       />
 
       {/* User Profile Modal */}
       {showProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-mono">
+        <div role="dialog" aria-modal="true" aria-labelledby="profile-modal-title" onKeyDown={(e) => { if (e.key === 'Escape') setShowProfile(false); }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-mono">
           <div className="bg-[var(--paper)] border border-[var(--line)] p-6 rounded-xl max-w-md w-full shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
-              <h2 className="text-sm font-bold text-[var(--ink)] uppercase tracking-wider font-display">Operator Profile</h2>
-              <button onClick={() => setShowProfile(false)} className="text-[var(--muted)] hover:text-[var(--ink)] text-xs cursor-pointer">[ESC]</button>
+              <h2 id="profile-modal-title" className="text-sm font-bold text-[var(--ink)] uppercase tracking-wider font-display">Operator Profile</h2>
+              <button type="button" onClick={() => setShowProfile(false)} aria-label="Close Operator Profile modal" className="text-[var(--muted)] hover:text-[var(--ink)] text-xs cursor-pointer">[ESC]</button>
             </div>
 
             {profileMessage.text && (
-              <div className={`p-3 rounded-lg text-xs flex items-center gap-2 ${profileMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30'}`}>
+              <div role="status" aria-live="polite" className={`p-3 rounded-lg text-xs flex items-center gap-2 ${profileMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30'}`}>
                 <span>{profileMessage.text}</span>
               </div>
             )}
 
             <form onSubmit={handleProfileUpdate} className="space-y-3 text-xs">
               <div>
-                <label className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">Full Name</label>
+                <label htmlFor="profile-full-name" className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">Full Name</label>
                 <input
+                  id="profile-full-name"
                   type="text"
                   required
                   value={profileName}
@@ -1209,8 +1277,9 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <label className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">Email Address</label>
+                <label htmlFor="profile-email-address" className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">Email Address</label>
                 <input
+                  id="profile-email-address"
                   type="email"
                   required
                   value={profileEmail}
@@ -1230,11 +1299,11 @@ export default function Dashboard() {
 
       {/* Admin Command Deck Modal */}
       {showAdmin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-mono">
+        <div role="dialog" aria-modal="true" aria-labelledby="admin-modal-title" onKeyDown={(e) => { if (e.key === 'Escape') setShowAdmin(false); }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm font-mono">
           <div className="bg-[var(--paper)] border border-rose-500/30 dark:border-rose-900/60 p-6 rounded-xl max-w-3xl w-full shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
-              <h2 className="text-sm font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider font-display">Admin Command Deck</h2>
-              <button onClick={() => setShowAdmin(false)} className="text-[var(--muted)] hover:text-[var(--ink)] text-xs cursor-pointer">[ESC]</button>
+              <h2 id="admin-modal-title" className="text-sm font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider font-display">Admin Command Deck</h2>
+              <button type="button" onClick={() => setShowAdmin(false)} aria-label="Close Admin Command Deck modal" className="text-[var(--muted)] hover:text-[var(--ink)] text-xs cursor-pointer">[ESC]</button>
             </div>
 
             {adminLoading ? (
@@ -1263,17 +1332,17 @@ export default function Dashboard() {
 
       {/* API & Telemetry Command Deck Modal */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md font-mono">
+        <div role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" onKeyDown={(e) => { if (e.key === 'Escape') setShowSettings(false); }} className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md font-mono">
           <div className="bg-[var(--paper)] border border-[var(--line)] p-5 sm:p-6 rounded-2xl max-w-2xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <div aria-hidden="true" className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
                   <Server className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-[var(--ink)] uppercase tracking-wider font-display">
+                  <h2 id="settings-modal-title" className="text-sm font-bold text-[var(--ink)] uppercase tracking-wider font-display">
                     API & Telemetry Command Deck
                   </h2>
                   <p className="text-[10px] text-[var(--muted)]">
@@ -1287,14 +1356,17 @@ export default function Dashboard() {
                   type="button"
                   onClick={() => fetchIntegrationsStatus(true)}
                   disabled={isPinging}
+                  aria-label="Ping all external telemetry connectors"
                   className="px-2.5 py-1 bg-[#14231b] hover:bg-[#1e382b] border border-[var(--line)] text-emerald-400 rounded-md text-[11px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   title="Ping all external connectors"
                 >
-                  <RefreshCw className={`w-3 h-3 ${isPinging ? 'animate-spin' : ''}`} />
+                  <RefreshCw aria-hidden="true" className={`w-3 h-3 ${isPinging ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">{isPinging ? 'Pinging...' : 'Ping Connectors'}</span>
                 </button>
                 <button 
+                  type="button"
                   onClick={() => setShowSettings(false)} 
+                  aria-label="Close API and Telemetry Settings modal"
                   className="text-[var(--muted)] hover:text-[var(--ink)] text-xs p-1 cursor-pointer"
                 >
                   ✕
@@ -1311,9 +1383,11 @@ export default function Dashboard() {
             )}
 
             {/* Sub-Tabs */}
-            <div className="flex items-center gap-1.5 border-b border-[var(--line)] pb-2 text-xs">
+            <div role="tablist" aria-label="Settings configuration sections" className="flex items-center gap-1.5 border-b border-[var(--line)] pb-2 text-xs">
               <button
                 type="button"
+                role="tab"
+                aria-selected={settingsActiveTab === 'status'}
                 onClick={() => setSettingsActiveTab('status')}
                 className={`px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
                   settingsActiveTab === 'status'
@@ -1321,11 +1395,13 @@ export default function Dashboard() {
                     : 'text-[var(--muted)] hover:text-[var(--ink)]'
                 }`}
               >
-                <Activity className="w-3.5 h-3.5" />
+                <Activity aria-hidden="true" className="w-3.5 h-3.5" />
                 <span>Live Health ({integrationsStatus?.services ? Object.keys(integrationsStatus.services).length : 6})</span>
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={settingsActiveTab === 'aqi'}
                 onClick={() => setSettingsActiveTab('aqi')}
                 className={`px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
                   settingsActiveTab === 'aqi'
@@ -1333,11 +1409,13 @@ export default function Dashboard() {
                     : 'text-[var(--muted)] hover:text-[var(--ink)]'
                 }`}
               >
-                <Wind className="w-3.5 h-3.5" />
+                <Wind aria-hidden="true" className="w-3.5 h-3.5" />
                 <span>AQI & Ground Truth</span>
               </button>
               <button
                 type="button"
+                role="tab"
+                aria-selected={settingsActiveTab === 'ai_email'}
                 onClick={() => setSettingsActiveTab('ai_email')}
                 className={`px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
                   settingsActiveTab === 'ai_email'
@@ -1345,7 +1423,7 @@ export default function Dashboard() {
                     : 'text-[var(--muted)] hover:text-[var(--ink)]'
                 }`}
               >
-                <Key className="w-3.5 h-3.5" />
+                <Key aria-hidden="true" className="w-3.5 h-3.5" />
                 <span>AI & Dispatch Keys</span>
               </button>
             </div>
@@ -1559,7 +1637,7 @@ export default function Dashboard() {
                 {/* WAQI Token */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] text-[var(--muted)] uppercase font-bold">
+                    <label htmlFor="settings-waqi-token" className="text-[10px] text-[var(--muted)] uppercase font-bold">
                       WAQI (aqicn.org) API Token
                     </label>
                     <a 
@@ -1569,10 +1647,11 @@ export default function Dashboard() {
                       className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1"
                     >
                       <span>Get Free WAQI Token</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
+                      <ExternalLink aria-hidden="true" className="w-2.5 h-2.5" />
                     </a>
                   </div>
                   <input
+                    id="settings-waqi-token"
                     type="password"
                     placeholder="Enter your WAQI API token (e.g. 5a1b...)"
                     value={aqiApiKey}
@@ -1587,7 +1666,7 @@ export default function Dashboard() {
                 {/* CPCB / Data.gov.in API Key */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] text-[var(--muted)] uppercase font-bold">
+                    <label htmlFor="settings-datagov-key" className="text-[10px] text-[var(--muted)] uppercase font-bold">
                       CPCB / Data.gov.in API Key
                     </label>
                     <a 
@@ -1597,10 +1676,11 @@ export default function Dashboard() {
                       className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1"
                     >
                       <span>data.gov.in portal</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
+                      <ExternalLink aria-hidden="true" className="w-2.5 h-2.5" />
                     </a>
                   </div>
                   <input
+                    id="settings-datagov-key"
                     type="password"
                     placeholder="Custom data.gov.in API key (optional - built-in gateway key active)"
                     value={dataGovApiKey}
@@ -1615,10 +1695,11 @@ export default function Dashboard() {
                 {/* Custom API Proxy URL */}
                 {aqiProvider === 'custom' && (
                   <div>
-                    <label className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">
+                    <label htmlFor="settings-custom-aqi-url" className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">
                       Custom Ingestion Proxy Endpoint URL
                     </label>
                     <input
+                      id="settings-custom-aqi-url"
                       type="url"
                       placeholder="https://your-custom-aqi-api.example.com/feed"
                       value={aqiCustomUrl}
@@ -1638,7 +1719,7 @@ export default function Dashboard() {
                 {/* Gemini AI Key */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] text-[var(--muted)] uppercase font-bold">
+                    <label htmlFor="settings-gemini-key" className="text-[10px] text-[var(--muted)] uppercase font-bold">
                       Google Gemini API Key
                     </label>
                     <a 
@@ -1648,10 +1729,11 @@ export default function Dashboard() {
                       className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1"
                     >
                       <span>Get Gemini Key</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
+                      <ExternalLink aria-hidden="true" className="w-2.5 h-2.5" />
                     </a>
                   </div>
                   <input
+                    id="settings-gemini-key"
                     type="password"
                     placeholder="AIzaSy..."
                     value={geminiKey}
@@ -1666,7 +1748,7 @@ export default function Dashboard() {
                 {/* Resend API Key */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] text-[var(--muted)] uppercase font-bold">
+                    <label htmlFor="settings-resend-key" className="text-[10px] text-[var(--muted)] uppercase font-bold">
                       Resend API Key
                     </label>
                     <a 
@@ -1676,10 +1758,11 @@ export default function Dashboard() {
                       className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1"
                     >
                       <span>resend.com</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
+                      <ExternalLink aria-hidden="true" className="w-2.5 h-2.5" />
                     </a>
                   </div>
                   <input
+                    id="settings-resend-key"
                     type="password"
                     placeholder="re_..."
                     value={resendKey}
@@ -1694,10 +1777,11 @@ export default function Dashboard() {
                 {/* Gmail SMTP */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
-                    <label className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">
+                    <label htmlFor="settings-gmail-user" className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">
                       Gmail SMTP User
                     </label>
                     <input
+                      id="settings-gmail-user"
                       type="email"
                       placeholder="operator@gmail.com"
                       value={gmailUser}
@@ -1706,10 +1790,11 @@ export default function Dashboard() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">
+                    <label htmlFor="settings-gmail-pass" className="text-[10px] text-[var(--muted)] uppercase font-bold block mb-1">
                       Gmail App Password
                     </label>
                     <input
+                      id="settings-gmail-pass"
                       type="password"
                       placeholder="xxxx xxxx xxxx xxxx"
                       value={gmailAppPass}
@@ -1742,7 +1827,7 @@ export default function Dashboard() {
                   onClick={saveSettings}
                   className="px-4 py-1.5 bg-[#1e5945] hover:bg-[#286e57] text-white font-medium rounded-lg text-xs cursor-pointer transition-all shadow-sm flex items-center gap-1.5"
                 >
-                  <Check className="w-3.5 h-3.5" />
+                  <Check aria-hidden="true" className="w-3.5 h-3.5" />
                   <span>Save & Connect APIs</span>
                 </button>
               </div>
@@ -1752,6 +1837,6 @@ export default function Dashboard() {
         </div>
       )}
 
-    </main>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Database, Cpu, Layers, RefreshCw, Send, Zap, Fuel, Plane, Coffee, Sun, ChevronDown } from 'lucide-react';
+import { Database, Cpu, Layers, RefreshCw, Send, Zap, Fuel, Coffee, Sun, ChevronDown } from 'lucide-react';
 import { RawEvent } from '@/lib/carbon';
 import { addRawEvent } from '@/lib/db';
 
@@ -24,7 +24,7 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark', userEmail }: 
   const [systemLoad, setSystemLoad] = useState<number>(12); // events per minute
   const [redisHits, setRedisHits] = useState<number>(187);
   const [geminiParses, setGeminiParses] = useState<number>(42);
-  const isLightTheme = false;
+  const isLightTheme = theme === 'light' && false;
 
   // Scenario Form States
   const [foodAmount, setFoodAmount] = useState<string>('350');
@@ -78,7 +78,7 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark', userEmail }: 
     }, 1000); // Packet hops every 1s
 
     return () => clearInterval(interval);
-  }, [onNewEntry]);
+  }, [onNewEntry, userEmail]);
 
   const triggerDynamicWebhook = (
     source: 'plaid' | 'maps' | 'homeassistant',
@@ -347,16 +347,17 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark', userEmail }: 
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Form 1: Food & Dining */}
-          <form onSubmit={handleFoodSubmit} className={`p-4 rounded-xl border flex flex-col gap-3.5 ${
+          <form onSubmit={handleFoodSubmit} aria-label="Food and Dining telemetry simulator" className={`p-4 rounded-xl border flex flex-col gap-3.5 ${
             isLightTheme ? 'bg-white border-[#dadce0]' : 'bg-neutral-950/40 border-neutral-800'
           }`}>
             <div className="flex items-center gap-2 border-b pb-2 border-neutral-200 dark:border-neutral-800">
-              <Coffee className="w-4 h-4 text-[#4285f4]" />
+              <Coffee aria-hidden="true" className="w-4 h-4 text-[#4285f4]" />
               <span className={`text-xs font-semibold font-mono ${isLightTheme ? 'text-neutral-700' : 'text-neutral-300'}`}>Food & Dining (Plaid)</span>
             </div>
             <div className="flex flex-col gap-1 text-xs">
-              <label className="text-[10px] text-neutral-500 uppercase font-mono">Amount Spent (₹ INR)</label>
+              <label htmlFor="pipeline-food-amount" className="text-[10px] text-[var(--muted)] uppercase font-mono">Amount Spent (₹ INR)</label>
               <input
+                id="pipeline-food-amount"
                 type="number"
                 step="1"
                 min="10"
@@ -373,8 +374,9 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark', userEmail }: 
               />
             </div>
             <div className="flex flex-col gap-1 text-xs">
-              <label className="text-[10px] text-neutral-500 uppercase font-mono">Scenario Category</label>
+              <label htmlFor="pipeline-food-type" className="text-[10px] text-[var(--muted)] uppercase font-mono">Scenario Category</label>
               <select
+                id="pipeline-food-type"
                 value={foodType}
                 onChange={e => setFoodType(e.target.value)}
                 className={`px-3 py-2 border rounded-lg outline-none font-mono text-xs ${
@@ -398,16 +400,17 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark', userEmail }: 
           </form>
 
           {/* Form 2: Transit & Commute */}
-          <form onSubmit={handleTransitSubmit} className={`p-4 rounded-xl border flex flex-col gap-3.5 ${
+          <form onSubmit={handleTransitSubmit} aria-label="Transit and Travel telemetry simulator" className={`p-4 rounded-xl border flex flex-col gap-3.5 ${
             isLightTheme ? 'bg-white border-[#dadce0]' : 'bg-neutral-950/40 border-neutral-800'
           }`}>
             <div className="flex items-center gap-2 border-b pb-2 border-neutral-200 dark:border-neutral-800">
-              <Fuel className="w-4 h-4 text-[#f4b400]" />
+              <Fuel aria-hidden="true" className="w-4 h-4 text-[#f4b400]" />
               <span className={`text-xs font-semibold font-mono ${isLightTheme ? 'text-neutral-700' : 'text-neutral-300'}`}>Transit & Travel (Maps)</span>
             </div>
             <div className="flex flex-col gap-1 text-xs">
-              <label className="text-[10px] text-neutral-500 uppercase font-mono">Distance Traveled (KM)</label>
+              <label htmlFor="pipeline-transit-amount" className="text-[10px] text-[var(--muted)] uppercase font-mono">Distance Traveled (KM)</label>
               <input
+                id="pipeline-transit-amount"
                 type="number"
                 min="0.5"
                 max="30000"
@@ -423,8 +426,9 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark', userEmail }: 
               />
             </div>
             <div className="flex flex-col gap-1 text-xs">
-              <label className="text-[10px] text-neutral-500 uppercase font-mono">Transit Mode</label>
+              <label htmlFor="pipeline-transit-type" className="text-[10px] text-[var(--muted)] uppercase font-mono">Transit Mode</label>
               <select
+                id="pipeline-transit-type"
                 value={transitType}
                 onChange={e => setTransitType(e.target.value)}
                 className={`px-3 py-2 border rounded-lg outline-none font-mono text-xs ${
@@ -450,16 +454,17 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark', userEmail }: 
           </form>
 
           {/* Form 3: Energy Grid & Solar */}
-          <form onSubmit={handleEnergySubmit} className={`p-4 rounded-xl border flex flex-col gap-3.5 ${
+          <form onSubmit={handleEnergySubmit} aria-label="Utilities and Solar telemetry simulator" className={`p-4 rounded-xl border flex flex-col gap-3.5 ${
             isLightTheme ? 'bg-white border-[#dadce0]' : 'bg-neutral-950/40 border-neutral-800'
           }`}>
             <div className="flex items-center gap-2 border-b pb-2 border-neutral-200 dark:border-neutral-800">
-              <Sun className="w-4 h-4 text-[#0f9d58]" />
+              <Sun aria-hidden="true" className="w-4 h-4 text-[#0f9d58]" />
               <span className={`text-xs font-semibold font-mono ${isLightTheme ? 'text-neutral-700' : 'text-neutral-300'}`}>Utilities & Solar (HA)</span>
             </div>
             <div className="flex flex-col gap-1 text-xs">
-              <label className="text-[10px] text-neutral-500 uppercase font-mono">Usage / Generation (kWh)</label>
+              <label htmlFor="pipeline-energy-amount" className="text-[10px] text-[var(--muted)] uppercase font-mono">Usage / Generation (kWh)</label>
               <input
+                id="pipeline-energy-amount"
                 type="number"
                 min="0.1"
                 max="10000"
@@ -475,8 +480,9 @@ export default function PipelineFlow({ onNewEntry, theme = 'dark', userEmail }: 
               />
             </div>
             <div className="flex flex-col gap-1 text-xs">
-              <label className="text-[10px] text-neutral-500 uppercase font-mono">Power Source type</label>
+              <label htmlFor="pipeline-energy-type" className="text-[10px] text-[var(--muted)] uppercase font-mono">Power Source type</label>
               <select
+                id="pipeline-energy-type"
                 value={energyType}
                 onChange={e => setEnergyType(e.target.value)}
                 className={`px-3 py-2 border rounded-lg outline-none font-mono text-xs ${
