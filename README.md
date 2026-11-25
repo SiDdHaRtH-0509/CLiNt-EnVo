@@ -2,8 +2,7 @@
 
 CLiNt EnVo is a production-grade, event-sourced carbon intelligence platform and sustainability dashboard. By leveraging automated transaction, transit, and smart home telemetry, the system passively maps everyday human activities to precise greenhouse gas (GHG) emission profiles in real-time.
 
-- **Live Website**: [clint-envo.vercel.app](https://clint-envo.vercel.app)
-- **API Backend**: [clint-envo.onrender.com](https://clint-envo.onrender.com)
+- **Live Website**: [clint-envo.vercel.app](https://main.d3hjolgl30gh6p.amplifyapp.com/)
 - **LinkedIn Post**: [Project Presentation & Demos](https://www.linkedin.com/posts/siddharth-dubey-cse_clintech-buildwithsidd-virtualpromptwars-ugcPost-7471050817077170176-WYPM/?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGJRzNkBgHqcQz9GwpBaIrNkHTH6AuZu_Y8)
 
 ---
