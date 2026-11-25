@@ -75,5 +75,12 @@ describe('AqiMonitor Pop-Up Alerts & Winter Smog Assistant', () => {
     fireEvent.change(householdSelect, { target: { value: 'elderly_asthma' } });
 
     expect(screen.getByText(/Pre-Dawn Respiratory Shield Routine/i)).toBeInTheDocument();
+
+    const briefBtn = screen.getByRole('button', { name: /generate genai smog brief/i });
+    fireEvent.click(briefBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: /gemini ai smog advisory brief/i })).toBeInTheDocument();
+    });
   });
 });

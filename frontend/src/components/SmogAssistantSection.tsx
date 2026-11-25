@@ -55,6 +55,9 @@ export default function SmogAssistantSection({
     [city, state, usAqi, pm25, householdProfile, commuteMode, cookingHeating]
   );
 
+  const buildLocalBrief = () =>
+    `${playbook.winterInversionAdvisory}\n\n• Routine: ${playbook.dailyRoutines[0]?.title} — ${playbook.dailyRoutines[0]?.directImpact}\n• Indoor Hack: ${playbook.indoorHacks[0]?.title} — ${playbook.indoorHacks[0]?.directImpact}\n• Sustainable Alternative: ${playbook.sustainableAlternatives[0]?.title} — ${playbook.sustainableAlternatives[0]?.directImpact}`;
+
   const handleAskGenAiPlaybook = async () => {
     setAiLoading(true);
     try {
@@ -82,10 +85,13 @@ export default function SmogAssistantSection({
         if (data.advice) {
           setAiSummary(data.advice);
           setAiSource(data.provider === 'gemini' ? 'gemini' : 'heuristic');
+          return;
         }
       }
+      setAiSummary(buildLocalBrief());
+      setAiSource('heuristic');
     } catch {
-      setAiSummary(playbook.winterInversionAdvisory);
+      setAiSummary(buildLocalBrief());
       setAiSource('heuristic');
     } finally {
       setAiLoading(false);
