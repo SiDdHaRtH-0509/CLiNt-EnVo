@@ -190,4 +190,25 @@ describe('Backend API Endpoints', () => {
     const data = await res.json();
     assert.ok(typeof data.reply === 'string' && data.reply.length > 10);
   });
+
+  it('POST /api/aqi/assistant returns winter smog routines, IAQ hacks, and direct impact', async () => {
+    const res = await fetch(`${baseUrl}/api/aqi/assistant`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        city: 'Delhi',
+        state: 'Delhi',
+        usAqi: 240,
+        pm25: 118,
+        householdProfile: 'family_kids',
+        commuteMode: 'car_cab',
+        cookingHeating: 'lpg',
+      }),
+    });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.success, true);
+    assert.match(data.advice, /Delhi/i);
+    assert.match(data.advice, /PM2\.5|CO2e/i);
+  });
 });

@@ -104,7 +104,7 @@ export default function Dashboard() {
   );
   const theme = 'dark';
   const [showSettings, setShowSettings] = useState(false);
-  const [activeTab, setActiveTab] = useState<'twin' | 'aqi' | 'ledger' | 'pipeline'>('twin');
+  const [activeTab, setActiveTab] = useState<'twin' | 'aqi' | 'ledger' | 'pipeline'>('aqi');
   
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -750,23 +750,6 @@ export default function Dashboard() {
               <button
                 type="button"
                 role="tab"
-                id="tab-twin"
-                aria-selected={activeTab === 'twin'}
-                aria-controls="panel-twin"
-                onClick={() => setActiveTab('twin')}
-                className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
-                  activeTab === 'twin'
-                    ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
-                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
-                }`}
-              >
-                <span aria-hidden="true">◉</span>
-                <span>Biosphere</span>
-              </button>
-
-              <button
-                type="button"
-                role="tab"
                 id="tab-aqi"
                 aria-selected={activeTab === 'aqi'}
                 aria-controls="panel-aqi"
@@ -778,8 +761,25 @@ export default function Dashboard() {
                 }`}
               >
                 <span aria-hidden="true">⌖</span>
-                <span>Air Intel & AQI</span>
+                <span>Smog & AQI Assistant</span>
                 <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                id="tab-twin"
+                aria-selected={activeTab === 'twin'}
+                aria-controls="panel-twin"
+                onClick={() => setActiveTab('twin')}
+                className={`px-3.5 py-1.5 rounded-md font-medium transition-all cursor-pointer flex items-center gap-2 text-xs ${
+                  activeTab === 'twin'
+                    ? 'bg-[var(--paper)] text-[#1e5945] dark:text-[#79c696] font-bold shadow-sm'
+                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <span aria-hidden="true">◉</span>
+                <span>Biosphere 3D</span>
               </button>
 
               <button

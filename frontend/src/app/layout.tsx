@@ -21,8 +21,8 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CLiNt EnVo | Real-Time Carbon Intelligence & Atmospheric AQI Platform",
-  description: "Production-grade event-sourced carbon intelligence platform, 3D WebGL Digital Twin biosphere, and real-time atmospheric Air Quality Index (AQI) telemetry tracker.",
+  title: "CLiNt EnVo | GenAI Urban Air Quality & Severe Winter Smog Assistant",
+  description: "GenAI-powered Urban Air Quality Assistant helping families and communities navigate severe winter smog with live AQI change alerts, indoor air quality hacks, low-emission daily routines, and sustainable alternatives.",
 };
 
 export default function RootLayout({

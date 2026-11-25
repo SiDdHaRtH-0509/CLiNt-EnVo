@@ -1,9 +1,26 @@
-# CLiNt EnVo
+# CLiNt EnVo — Urban Air Quality & Winter Smog Assistant
 
-CLiNt EnVo is a production-grade, event-sourced carbon intelligence platform and sustainability dashboard. By leveraging automated transaction, transit, and smart home telemetry, the system passively maps everyday human activities to precise greenhouse gas (GHG) emission profiles in real-time.
+> **[Challenge 6] Urban Air Quality Assistant:** A GenAI-powered assistant that helps families and communities navigate severe winter smog and urban air pollution by recommending low-emission daily routines, indoor air quality (IAQ) hacks, and sustainable alternatives tailored to their location and lifestyle—while clearly explaining the direct impact of every choice.
 
-- **Live Website**: [clint-envo.vercel.app](https://main.d3hjolgl30gh6p.amplifyapp.com/)
+- **Live Website (AWS Amplify)**: [https://main.d3hjolgl30gh6p.amplifyapp.com](https://main.d3hjolgl30gh6p.amplifyapp.com/)
+- **Backend API (AWS Lambda / API Gateway)**: [https://mq6chfqt42.execute-api.ap-south-1.amazonaws.com](https://mq6chfqt42.execute-api.ap-south-1.amazonaws.com/)
 - **LinkedIn Post**: [Project Presentation & Demos](https://www.linkedin.com/posts/siddharth-dubey-cse_clintech-buildwithsidd-virtualpromptwars-ugcPost-7471050817077170176-WYPM/?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGJRzNkBgHqcQz9GwpBaIrNkHTH6AuZu_Y8)
+
+---
+
+## Urban Air Quality & Winter Smog Capabilities
+
+1. **Real-Time AQI Increase/Decrease Pop-Up Alerts (`AqiToast` & Auto-Polling)**:
+   - Continuously tracks city-level AQI (via CPCB CAAQMS India stations, Open-Meteo Copernicus CAMS, and WAQI).
+   - Automatically triggers instant **pop-up notifications** whenever ambient AQI **increases** (smog surge warning with protective indoor steps) or **decreases** (clean-air cross-ventilation window alert), with optional browser push notifications.
+2. **GenAI Family & Community Smog Playbook (`SmogAssistantSection` & `POST /api/aqi/assistant`)**:
+   - Powered by **Google Gemini 1.5 Flash** (`@google/generative-ai`) with a deterministic science-backed offline fallback.
+   - Tailors guidance by **Location/City**, **Household Profile** (families with children, elderly/asthma-sensitive, community/RWA groups, commuters), **Commute Mode**, and **Cooking/Heating Fuel**:
+     - **Low-Emission Daily Routines**: Thermal inversion scheduling (12:30–15:30 safe mixing window vs dawn/evening peaks) with quantified PM2.5 inhalation reduction.
+     - **Indoor Air Quality (IAQ) Hacks**: Damp microfiber mopping (`-65%` dust resuspension), DIY MERV-13 box-fan purifiers (`-60%` indoor PM2.5), draft sealing, and kitchen exhaust ventilation (`-50%` indoor NO₂).
+     - **Sustainable Alternatives & Direct Impact**: Metro/EV commute swaps (`-2.8 to -4.2 kg CO₂e/day`), induction vs combustion cooking, and community zero-burning pacts.
+3. **Interactive Personal Exposure Planner & 3D Digital Twin Biosphere**:
+   - Calculates activity-specific exposure risk for walks, outdoor work, children's play, and sensitive demographics, paired with a Three.js 3D Earth Digital Twin and per-user isolated carbon ledger.
 
 ---
 

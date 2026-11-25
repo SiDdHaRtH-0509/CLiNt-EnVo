@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   MapPin, 
   Search, 
@@ -10,9 +10,13 @@ import {
   Navigation,
   Star,
   Download,
-  Database
+  Database,
+  Bell
 } from 'lucide-react';
 import { addRawEvent } from '@/lib/db';
+import { AqiChangeNotification, evaluateAqiDelta } from '@/lib/aqiAdvisor';
+import AqiToast from '@/components/AqiToast';
+import SmogAssistantSection from '@/components/SmogAssistantSection';
 
 interface GeoSearchResult {
   id: number;
@@ -164,6 +168,63 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
     return 'http://localhost:5000';
   };
 
+  // Real-Time AQI Increase/Decrease Pop-Up Notification State
+  const [aqiAlerts, setAqiAlerts] = useState<AqiChangeNotification[]>([]);
+  const lastObservedAqiRef = useRef<number | null>(null);
+
+  const dismissAqiAlert = useCallback((id: string) => {
+    setAqiAlerts((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  const pushAqiAlert = useCallback((alert: AqiChangeNotification) => {
+    setAqiAlerts((prev) => [alert, ...prev].slice(0, 3));
+    setTimeout(() => {
+      setAqiAlerts((prev) => prev.filter((a) => a.id !== alert.id));
+    }, 9000);
+
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      window.Notification.permission === 'granted'
+    ) {
+      try {
+        new window.Notification(alert.headline, { body: alert.actionTip });
+      } catch {
+        // Ignore browser notification restrictions
+      }
+    }
+  }, []);
+
+  const handleEnableBrowserAlerts = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        await window.Notification.requestPermission();
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const simulateAqiShift = (delta: number) => {
+    const baseAqi = aqiData?.usAqi ?? 140;
+    const nextAqi = Math.max(15, Math.min(500, baseAqi + delta));
+    const alert = evaluateAqiDelta(selectedCity.name, baseAqi, nextAqi, 1);
+    if (alert) {
+      pushAqiAlert(alert);
+    }
+    setAqiData((prev) =>
+      prev
+        ? {
+            ...prev,
+            usAqi: nextAqi,
+            pm25: Number(Math.max(5, prev.pm25 + delta * 0.45).toFixed(1)),
+            updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }
+        : prev
+    );
+    lastObservedAqiRef.current = nextAqi;
+  };
+
   // 1. Fetch Main Air Quality (Backend Proxy with resilient Open-Meteo fallback)
   const fetchAirData = useCallback(async (lat: number, lon: number, cityName: string, countryName: string = 'India') => {
     setLoading(true);
@@ -219,12 +280,29 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
       const weatherRes = await fetch(weatherUrl).catch(() => null);
       const weatherJson = weatherRes && weatherRes.ok ? await weatherRes.json() : null;
 
+      const nextAqi = Math.round(Number(current.us_aqi ?? 55));
+      const storageKey = `clint_aqi_last_${cityName.toLowerCase()}`;
+      let storedPrev: number | null = lastObservedAqiRef.current;
+      if (typeof window !== 'undefined') {
+        const savedVal = localStorage.getItem(storageKey);
+        if (savedVal !== null && !Number.isNaN(Number(savedVal))) {
+          storedPrev = Number(savedVal);
+        }
+        localStorage.setItem(storageKey, String(nextAqi));
+      }
+
+      const deltaAlert = evaluateAqiDelta(cityName, storedPrev, nextAqi, 1);
+      if (deltaAlert) {
+        pushAqiAlert(deltaAlert);
+      }
+      lastObservedAqiRef.current = nextAqi;
+
       setAqiData({
         city: cityName,
         country: countryName,
         latitude: lat,
         longitude: lon,
-        usAqi: Math.round(Number(current.us_aqi ?? 55)),
+        usAqi: nextAqi,
         europeanAqi: Math.round(Number(current.european_aqi ?? 28)),
         pm25: Number(Number(current.pm2_5 ?? 18).toFixed(1)),
         pm10: Number(Number(current.pm10 ?? 32).toFixed(1)),
@@ -244,13 +322,20 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pushAqiAlert]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchAirData(selectedCity.lat, selectedCity.lon, selectedCity.name, selectedCity.state);
     }, 0);
-    return () => clearTimeout(timer);
+    // Live AQI polling every 60 seconds to detect increases/decreases automatically
+    const pollInterval = setInterval(() => {
+      fetchAirData(selectedCity.lat, selectedCity.lon, selectedCity.name, selectedCity.state);
+    }, 60000);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(pollInterval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -497,6 +582,7 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in font-sans">
+      <AqiToast alerts={aqiAlerts} onDismiss={dismissAqiAlert} />
       
       {/* Editorial Field Navigation Bar (AirWatch Field Style) */}
       <div className="bg-[var(--paper)] border border-[var(--line)] p-2 sm:p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-[var(--shadow)]">
@@ -536,11 +622,38 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
           </div>
         )}
 
-        {/* Global Indicator */}
-        <div className="flex items-center gap-2.5 text-xs font-mono ml-auto">
+        {/* Global Indicator & Live AQI Change Alert Controls */}
+        <div className="flex flex-wrap items-center gap-2 text-xs font-mono ml-auto">
+          <button
+            type="button"
+            onClick={() => simulateAqiShift(35)}
+            aria-label="Preview AQI increased pop-up notification"
+            className="px-2 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[10px] font-semibold cursor-pointer transition-colors"
+            title="Test AQI Surge Pop-Up Alert"
+          >
+            AQI ↑ Alert
+          </button>
+          <button
+            type="button"
+            onClick={() => simulateAqiShift(-28)}
+            aria-label="Preview AQI decreased pop-up notification"
+            className="px-2 py-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold cursor-pointer transition-colors"
+            title="Test AQI Improved Pop-Up Alert"
+          >
+            AQI ↓ Alert
+          </button>
+          <button
+            type="button"
+            onClick={handleEnableBrowserAlerts}
+            aria-label="Enable browser push notifications for AQI changes"
+            className="p-1.5 rounded-lg bg-[var(--paper)] hover:bg-[#edf2ee] dark:hover:bg-[#14231b] border border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
+            title="Enable desktop AQI notifications"
+          >
+            <Bell aria-hidden="true" className="w-3.5 h-3.5" />
+          </button>
           <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] uppercase font-bold tracking-wider">CPCB & CAMS MODEL LIVE</span>
+            <span aria-hidden="true" className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] uppercase font-bold tracking-wider">CPCB & CAMS LIVE</span>
           </span>
           <button
             type="button"
@@ -566,14 +679,14 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
             <div className="lg:col-span-7 bg-[var(--paper)] border border-[var(--line)] p-6 sm:p-8 rounded-xl flex flex-col justify-between shadow-[var(--shadow)] relative overflow-hidden">
               <div>
                 <div className="flex items-center gap-2 text-[10px] font-mono text-emerald-700 dark:text-emerald-400 uppercase tracking-widest font-bold mb-3">
-                  <span className="w-2 h-2 bg-emerald-600 dark:bg-emerald-500 inline-block" />
-                  FIELD INTELLIGENCE / ATMOSPHERE STUDY
+                  <span aria-hidden="true" className="w-2 h-2 bg-emerald-600 dark:bg-emerald-500 inline-block" />
+                  GENAI URBAN AIR QUALITY & WINTER SMOG ASSISTANT
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--ink)] tracking-tight font-display">
-                  Air is a shared <span className="text-emerald-700 dark:text-emerald-400 font-normal italic">experience.</span>
+                  Navigate winter smog <span className="text-emerald-700 dark:text-emerald-400 font-normal italic">safely.</span>
                 </h1>
                 <p className="text-xs text-[var(--muted)] mt-2 max-w-lg leading-relaxed">
-                  Real-time pollution diagnostics, particulate concentrations, and invisible atmospheric variables shaping the way we live, move, and decarbonize.
+                  Real-time AQI surge alerts, indoor air quality hacks, and low-emission routines tailored for families and communities navigating urban winter smog.
                 </p>
               </div>
 
@@ -923,6 +1036,14 @@ export default function AqiMonitor({ theme = 'dark', onNewTelemetry, userEmail }
             </div>
 
           </div>
+
+          <SmogAssistantSection
+            city={selectedCity.name}
+            state={selectedCity.state}
+            usAqi={aqiData?.usAqi ?? 145}
+            pm25={aqiData?.pm25 ?? 52}
+            backendUrl={getBackendUrl()}
+          />
 
         </div>
       )}

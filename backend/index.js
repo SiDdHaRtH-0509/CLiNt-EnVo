@@ -624,14 +624,14 @@ app.post('/api/chat', async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY || serverSettings.geminiApiKey || bodyApiKey || headerApiKey || '';
     const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-    const systemPrompt = `You are CLiNt-Saver, the dedicated personal sustainability AI copilot for the CLiNt EnVo platform.
-CLiNt EnVo is a passive, zero-input carbon event-sourcing network that converts everyday human activity into an active carbon ledger.
+    const systemPrompt = `You are CLiNt-Saver, the GenAI-powered Urban Air Quality & Winter Smog Assistant for the CLiNt EnVo platform.
+CLiNt EnVo helps families and communities navigate severe winter smog and urban air pollution by suggesting low-emission daily routines, indoor air quality (IAQ) hacks, and sustainable alternatives tailored to location and lifestyle, while clearly explaining the direct health and carbon impact of each choice.
 The platform was founded and envisioned by Siddharth Gopal Dubey.
 
 TECHNICAL ARCHITECTURE DETAILS:
-1. Ingestion: Exposes secure webhook endpoints for Plaid (financial transactions) and Google Maps (localized transit telemetry), and HomeAssistant (household grid energy consumption webhooks).
-2. Processing: Telemetry data packets flow through an Apache Kafka/GCP Pub/Sub queue to buffer ingestion spikes. A stateless Go-based worker pulls transaction packets, uses Redis semantic cache for matching merchant emission coefficients, and falls back to a high-speed Gemini Flash parser to calculate precise GHG impacts.
-3. Storage: Final parsed carbon entries are stored in TimescaleDB (time-series) and MongoDB Atlas (user profiles and gamification).
+1. Ingestion: Combines live CPCB/CAAQMS, Open-Meteo Copernicus, and WAQI atmospheric telemetry with passive webhook feeds (financial spending, transit distance, and household grid kWh).
+2. Processing: Real-time AQI delta detection triggers instant user pop-up alerts on air quality increases or decreases, while Gemini Flash + semantic caching resolves carbon and exposure impact.
+3. Storage: Time-series carbon ledger and isolated user profiles stored in MongoDB Atlas / immutable node storage.
 
 USER RUNTIME STATE INFORMATION:
 - Weekly Carbon footprint: ${stats.totalCarbon} kg CO2e
@@ -644,12 +644,11 @@ RECENT LEDGER TRANSACTIONS:
 ${JSON.stringify(ledgerSummary, null, 2)}
 
 INSTRUCTIONS:
-1. When asked about who founded, made, or envisioned CLiNt EnVo, explicitly attribute it to Siddharth Gopal Dubey.
-2. Maintain a highly professional, technically precise, and concise terminal-style conversational tone.
-3. Answer questions about carbon calculations using standard science principles and refer to our Go worker/Redis/Gemini pipeline where applicable.
-4. Keep answers under 120 words unless a detailed explanation of formulas is requested.
-5. Do NOT answer any queries that are unrelated to sustainability, carbon emissions, environmental impact, or the CLiNt EnVo platform (such as general knowledge, coding, programming, writing essays, general history, math puzzles, etc.). If the user asks an unrelated question, politely decline to answer, stating that you are CLiNt-Saver, a dedicated sustainability copilot.
-6. If the user requests you to reply in, translate to, or write in any other language, you must provide your complete answer in that requested language, while still adhering to the sustainability-only content restriction.`;
+1. Prioritize actionable, compassionate, science-backed advice for families and communities dealing with severe winter smog, indoor air quality hacks (HEPA/DIY box-fan purifiers, wet-mopping, ventilation timing, sealing drafts, exhaust fans), low-emission daily routines, and sustainable alternatives—always explaining the direct impact (kg CO2e saved and PM2.5 exposure reduction).
+2. When asked about who founded, made, or envisioned CLiNt EnVo, explicitly attribute it to Siddharth Gopal Dubey.
+3. Keep answers clear, structured, and concise (under 140 words unless detailed math is requested).
+4. Politely decline queries unrelated to air quality, winter smog, indoor air health, carbon emissions, sustainability, or CLiNt EnVo.
+5. If requested in another language, reply completely in that language while keeping the sustainability/air-quality focus.`;
 
     if (!genAI) {
       // Offline fallback processing logic
@@ -668,6 +667,58 @@ INSTRUCTIONS:
     console.error('CLiNt-Saver backend chat route failed:', error);
     return res.status(500).json({
       reply: 'System Error: Ingestion stream connection lost. Reverting to local terminal cache.'
+    });
+  }
+});
+
+// GenAI Urban Air Quality & Winter Smog Assistant Route
+app.post('/api/aqi/assistant', async (req, res) => {
+  try {
+    const city = cleanStringInput(req.body.city) || 'Delhi';
+    const state = cleanStringInput(req.body.state) || 'India';
+    const usAqi = Number(req.body.usAqi ?? 160);
+    const pm25 = Number(req.body.pm25 ?? 65);
+    const householdProfile = cleanStringInput(req.body.householdProfile) || 'family_kids';
+    const commuteMode = cleanStringInput(req.body.commuteMode) || 'car_cab';
+    const cookingHeating = cleanStringInput(req.body.cookingHeating) || 'lpg';
+    const bodyApiKey = cleanStringInput(req.body.apiKey);
+
+    const headerApiKey = req.get('x-api-key') || '';
+    const serverSettings = await getStoredSettings();
+    const apiKey = process.env.GEMINI_API_KEY || serverSettings.geminiApiKey || bodyApiKey || headerApiKey || '';
+
+    const fallbackAdvice = `Winter Smog Briefing for ${city}, ${state} (AQI ${usAqi}, PM2.5 ${pm25} µg/m³):
+• Low-Emission Routine (${householdProfile}): Shift outdoor family walks, school travel prep, and errands to the 12:30–15:30 thermal mixing window; avoiding dawn/evening inversion cuts PM2.5 lung deposition by ~40%.
+• Indoor Air Quality Hack (${cookingHeating}): Replace dry sweeping with damp microfiber mopping (-65% indoor dust resuspension), run a DIY MERV-13 box-fan filter (-60% indoor PM2.5), and keep windows sealed during evening haze.
+• Sustainable Alternative (${commuteMode}): Switching a 15 km combustion trip to Metro/electric transit saves ~2.8–4.2 kg CO2e/day and lowers neighborhood NO2 exposure.`;
+
+    if (!apiKey) {
+      return res.json({ success: true, provider: 'heuristic', advice: fallbackAdvice });
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const prompt = `You are a GenAI Urban Air Quality Assistant helping families and communities navigate severe winter smog.
+Location: ${city}, ${state}
+Live Air Quality: US AQI ${usAqi}, PM2.5 ${pm25} µg/m³
+Lifestyle Context: household=${householdProfile}, commute=${commuteMode}, cooking_heating=${cookingHeating}
+
+Provide 3 concise, practical bullet points:
+1. A low-emission daily routine tailored to their location and household.
+2. An affordable indoor air quality hack.
+3. A sustainable commute/energy alternative.
+For each point, explicitly state the direct impact (in % PM2.5 exposure reduction and/or kg CO2e saved). Keep under 160 words.`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    return res.json({ success: true, provider: 'gemini', advice: text.trim() || fallbackAdvice });
+  } catch (error) {
+    console.error('Urban AQI Assistant failed:', error);
+    return res.status(200).json({
+      success: true,
+      provider: 'heuristic',
+      advice:
+        'Keep exterior windows sealed during dawn/evening thermal inversion, run indoor wet-mopping and HEPA/DIY box-fan filtration (-60% PM2.5 indoors), and shift arterial commutes to Metro/EV (-2.8 kg CO2e/day).'
     });
   }
 });
@@ -786,6 +837,13 @@ app.post('/api/send-email', authenticateToken, async (req, res) => {
 // Offline fallback helper function
 function getOfflineReply(message, stats, ledger) {
   const query = message.toLowerCase();
+
+  if (query.includes('smog') || query.includes('indoor') || query.includes('hack') || query.includes('family') || query.includes('community') || query.includes('winter') || query.includes('aqi') || query.includes('pm2.5')) {
+    return `**Urban Winter Smog & Indoor Air Quality Guide**:
+1. **Low-Emission Daily Routine**: Avoid dawn/evening thermal inversion (05:30–09:30 & after 18:00); batch family errands between 12:30–15:30 to cut PM2.5 lung deposition by ~40%.
+2. **Indoor Air Quality (IAQ) Hacks**: Swap dry sweeping for damp microfiber mopping (-65% dust resuspension), run a DIY MERV-13 box-fan filter (-60% indoor PM2.5), and use kitchen exhaust while cooking (-50% indoor NO2).
+3. **Sustainable Choice Impact**: Switching a 15 km combustion cab commute to Metro/EV saves **~2.8–3.5 kg CO2e/day** and eliminates roadside tailpipe particulates.`;
+  }
 
   if (query.includes('founder') || query.includes('found') || query.includes('siddharth') || query.includes('dubey') || query.includes('who made') || query.includes('creator') || query.includes('owner') || query.includes('envisioned')) {
     return `CLiNt EnVo was founded and envisioned by Siddharth Gopal Dubey.

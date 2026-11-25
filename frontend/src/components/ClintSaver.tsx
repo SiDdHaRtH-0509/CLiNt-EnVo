@@ -173,12 +173,12 @@ export default function ClintSaver({ stats, ledger }: ClintSaverProps) {
     }
   };
 
-  // Quick query prompt presets
+  // Quick query prompt presets aligned to Urban Air Quality & Winter Smog
   const suggestions = [
+    'Best indoor air quality hacks for winter smog?',
+    'Low-emission daily routine for my family',
     'How does local AQI correlate with carbon?',
-    'Who founded CLiNt EnVo?',
     'Why did my travel footprint spike?',
-    'Explain the pipeline architecture',
     'How can I improve my ecological twin?'
   ];
 
@@ -366,6 +366,14 @@ function getLocalResponse(query: string, stats: LedgerStats, ledger: LedgerEntry
     return `CLiNt EnVo was founded and envisioned by Siddharth Gopal Dubey.
     
 Siddharth conceived the platform as a next-generation personal sustainability ecosystem. Instead of relying on manual data entry, the platform acts as a passive, zero-input carbon event-sourcing network, securely ingesting telemetry from user-authorized touchpoints (Plaid, Google Maps, HomeAssistant) and converting it into an immutable carbon ledger.`;
+  }
+
+  // Real-Time Winter Smog, Indoor Air Quality Hacks & Family Protection
+  if (text.includes('indoor') || text.includes('hack') || text.includes('winter') || text.includes('family') || text.includes('community') || text.includes('routine')) {
+    return `**Urban Winter Smog & Indoor Air Quality (IAQ) Playbook**:
+1. **Low-Emission Daily Routine**: Avoid dawn/evening thermal inversion (05:30–09:30 & after 18:00); batch family school runs and errands during 12:30–15:30 to reduce PM2.5 lung deposition by **~40%**.
+2. **Indoor Air Quality Hacks**: Swap dry broom sweeping for damp microfiber mopping (**-65% dust resuspension**), run a DIY MERV-13 box-fan filter (**-60% indoor PM2.5**), and run kitchen exhaust while cooking (**-50% indoor NO₂**).
+3. **Direct Choice Impact**: Shifting a 15 km combustion cab commute to Metro/EV saves **~2.8–3.5 kg CO₂e/day** and cuts roadside exhaust exposure.`;
   }
 
   // Real-Time AQI & Atmospheric Emissions Correlation

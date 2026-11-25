@@ -390,7 +390,7 @@ export default function AuthGate({ onAuthenticate }: AuthGateProps) {
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-[var(--ink)] font-display">CLiNt EnVo</h1>
           <p className="text-[10px] text-[var(--muted)] font-mono mt-1 text-center uppercase tracking-widest">
-            Carbon Event-Sourcing & Air Intelligence
+            GenAI Urban Air Quality &amp; Winter Smog Assistant
           </p>
         </div>
 
